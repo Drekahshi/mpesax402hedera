@@ -41,7 +41,7 @@ const ai = airdrop as AirdropFile;
 const isAddr = (v?: string | null): v is Hex =>
   !!v && /^0x[a-fA-F0-9]{40}$/.test(v) && !/^0x0+$/.test(v);
 
-export const EXPLORER_BASE = d.explorerBase || 'https://sepolia.etherscan.io';
+export const EXPLORER_BASE = d.explorerBase || 'https://hashscan.io/testnet';
 
 export const DEPLOYER = isAddr(d.deployer) ? d.deployer : null;
 

@@ -115,19 +115,23 @@ export const ECOSYSTEM_TOKENS: TokenConfig[] = [
   },
 ];
 
-export const ETH_CONFIG = {
-  symbol: 'ETH',
-  name: 'Ethereum & Hedera',
+export const HBAR_CONFIG = {
+  symbol: 'HBAR',
+  name: 'Hedera Hashgraph',
   decimals: 18,
-  color: '#10b981',
-  role: 'Native gas token',
+  color: '#00ea90',
+  role: 'Native Hedera network gas token',
 };
 
-export const EXPLORER_BASE = deployedFile.explorerBase || 'https://sepolia.etherscan.io';
-export const DEPLOYED_NETWORK = deployedFile.network || 'sepolia';
+// Backwards compatibility alias
+export const ETH_CONFIG = HBAR_CONFIG;
+
+export const EXPLORER_BASE = deployedFile.explorerBase || 'https://hashscan.io/testnet';
+export const DEPLOYED_NETWORK = deployedFile.network || 'hederaTestnet';
 
 export const TICKER_TOKENS = [
-  { s: 'ETH', p: 'EVM', c: 'Sepolia' },
+  { s: 'HBAR', p: 'Native', c: 'Hedera' },
+  { s: 'KBAR', p: 'HTS', c: 'Reward' },
   { s: 'NVR', p: 'Governance', c: 'DAO' },
   { s: 'yBOB', p: 'Stable', c: '1.00' },
   { s: 'YTOKEN', p: 'Yield', c: 'ETF' },

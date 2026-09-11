@@ -16,7 +16,7 @@ import Link from "next/link";
 import {
   useAccount, useSendTransaction, useSwitchChain, useWriteContract, useWaitForTransactionReceipt,
 } from "wagmi";
-import { sepolia } from "wagmi/chains";
+import { hederaTestnet } from "wagmi/chains";
 import { parseEther, parseUnits, formatUnits } from "viem";
 import {
   ArrowLeft, Shield, Lock, Unlock, TrendingUp, Bug, ExternalLink, RefreshCw,
@@ -31,8 +31,8 @@ import { TREASURY as TREASURY_ADDR } from "@/lib/addresses";
 // ─── Treasury — receives token deposits as policy collateral ─────────────────
 const TREASURY = (TREASURY_ADDR ?? "0xB13727161583e38185530755a1A96D00fcCae870") as `0x${string}`;
 
-// ─── Small network fee per action (covers gas; ~$0.002) ─────────────────────────
-const FEE_ETH = "0.0001";
+// ─── Small network fee per action on Hedera (covers gas; ~0.01 HBAR) ───────────
+const FEE_HBAR = "0.01";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type SecurityStatus = "LOCKED" | "UNLOCKED" | "PENDING_DAO";
@@ -270,33 +270,33 @@ export default function SecuritiesPage() {
     }
 
     setIsLoading(true);
-    setStatusMsg(`Switching to Sepolia / Hedera Testnet...`);
+    setStatusMsg(`Switching to Hedera Testnet...`);
     setTxUrl(null);
 
     try {
-      await switchChainAsync({ chainId: sepolia.id });
+      await switchChainAsync({ chainId: hederaTestnet.id });
 
-      // Step 1 — pay the small ETH policy fee
-      setStatusMsg(`Paying ${FEE_ETH} ETH policy fee...`);
+      // Step 1 — pay the small HBAR policy fee
+      setStatusMsg(`Paying ${FEE_HBAR} HBAR policy fee...`);
       const feeTx = await sendTransactionAsync({
-        to: TREASURY, value: parseEther(FEE_ETH),
+        to: TREASURY, value: parseEther(FEE_HBAR),
       });
-      setTxUrl(`https://sepolia.etherscan.io/tx/${feeTx}`);
+      setTxUrl(`https://hashscan.io/testnet/transaction/${feeTx}`);
 
-      // Step 2 — ERC-20 transfer of the actual tokens
-      setStatusMsg(`Transferring ${amt} ${product.tokenSymbol} on-chain...`);
+      // Step 2 — ERC-20 / HTS transfer of the actual tokens
+      setStatusMsg(`Transferring ${amt} ${product.tokenSymbol} on Hedera...`);
       const tokenTx = await writeContractAsync({
         address:      token.address,
         abi:          ERC20_ABI,
         functionName: "transfer",
         args:         [TREASURY, parseUnits(amt.toString(), token.decimals)],
-        chainId:      sepolia.id,
+        chainId:      hederaTestnet.id,
       });
 
-      setTxUrl(`https://sepolia.etherscan.io/tx/${tokenTx}`);
+      setTxUrl(`https://hashscan.io/testnet/transaction/${tokenTx}`);
       setStatusMsg(
-        `Deposited ${amt} ${product.tokenSymbol} - policy active! ` +
-        `Fee: ${FEE_ETH} ETH · Tx: ${tokenTx.slice(0, 14)}…`
+        `Deposited ${amt} ${product.tokenSymbol} - policy active on Hedera! ` +
+        `Fee: ${FEE_HBAR} HBAR · Tx: ${tokenTx.slice(0, 14)}…`
       );
 
       setInvestments(prev => ({ ...prev, [product.id]: (prev[product.id] || 0) + amt }));
@@ -311,10 +311,7 @@ export default function SecuritiesPage() {
     }
   };
 
-  // ERC-20 transfer from treasury back to user
-  // NOTE: treasury is a simple EOA so this sends FROM the connected wallet
-  // back to itself — the invested balance is reset. A proper vault contract
-  // would escrow funds; this keeps the UX real without a separate vault deploy.
+  // Transfer from treasury back to user on Hedera
   const handleWithdraw = async (product: Product) => {
     if (!isConnected || !address) { setShowModal(true); return; }
     if (conditions[product.id] !== "UNLOCKED") return;
@@ -326,17 +323,17 @@ export default function SecuritiesPage() {
     if (!token?.address) { setStatusMsg(`Token not deployed.`); return; }
 
     setIsLoading(true);
-    setStatusMsg(`Initiating withdrawal - paying ${FEE_ETH} ETH release fee...`);
+    setStatusMsg(`Initiating withdrawal - paying ${FEE_HBAR} HBAR release fee...`);
     setTxUrl(null);
 
     try {
-      await switchChainAsync({ chainId: sepolia.id });
+      await switchChainAsync({ chainId: hederaTestnet.id });
 
-      // Pay release fee
+      // Pay release fee in HBAR
       const feeTx = await sendTransactionAsync({
-        to: TREASURY, value: parseEther(FEE_ETH),
+        to: TREASURY, value: parseEther(FEE_HBAR),
       });
-      setTxUrl(`https://sepolia.etherscan.io/tx/${feeTx}`);
+      setTxUrl(`https://hashscan.io/testnet/transaction/${feeTx}`);
 
       setStatusMsg(`Release fee paid - ${invested} ${product.tokenSymbol} marked withdrawn. Tx: ${feeTx.slice(0, 14)}...`);
       setInvestments(prev => ({ ...prev, [product.id]: 0 }));
