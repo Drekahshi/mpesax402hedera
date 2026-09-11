@@ -1,0 +1,27 @@
+{
+  "network": "localhost",
+  "chainId": 31337,
+  "deployedAt": null,
+  "deployer": null,
+  "explorerBase": "https://sepolia.etherscan.io",
+  "contracts": {
+    "nuvariToken": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "name": "NuvariToken",
+      "symbol": "NVR",
+      "decimals": 18,
+      "cap": "50000000",
+      "initialSupply": "50000000",
+      "explorer": ""
+    },
+    "conservationNFT": {
+      "address": "0x0000000000000000000000000000000000000000",
+      "name": "ConservationNFT",
+      "symbol": "KNFT",
+      "mintPrice": "0.001",
+      "mintPriceWei": "1000000000000000",
+      "maxSupply": 105,
+      "explorer": ""
+    }
+  }
+}

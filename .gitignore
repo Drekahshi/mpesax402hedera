@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ChromaDB
+chrome_langchain_db/
+
+# Logs
+*.log
+
+# Env (never commit real keys)
+.env
+.env.local
+.env.*
+frontend/.env
+frontend/.env.local
+frontend/.env.*
+
+# Uploads
+uploads/
+
+# Node
+node_modules/
+
+# Next.js build output
+.next/
+frontend/.next/
+
+# Hardhat / Foundry artifacts
+artifacts/
+cache/
+frontend/artifacts/
+frontend/cache/
+
+# Prisma generated
+frontend/node_modules/
+
+# Test audio outputs
+*.mp3
+

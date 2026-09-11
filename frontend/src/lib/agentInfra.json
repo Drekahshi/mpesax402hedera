@@ -1,0 +1,60 @@
+{
+  "network": "Sepolia / Hedera Testnet",
+  "chainId": 11155111,
+  "deployedAt": "2026-08-30T01:22:53.949Z",
+  "deployer": "0xaA9953BAB5de2147cC0c919Ab2ff22d809188514",
+  "treasury": "0xaA9953BAB5de2147cC0c919Ab2ff22d809188514",
+  "explorer": "https://sepolia.etherscan.io",
+  "contracts": {
+    "KaiAgentRegistry": {
+      "address": "0x36C42829BF7e48cCF738f0632456ECE63ABEA2ED",
+      "explorer": "https://sepolia.etherscan.io/address/0x36C42829BF7e48cCF738f0632456ECE63ABEA2ED"
+    },
+    "KaiEscrow": {
+      "address": "0x04680EF6Ef98C7bD64eC280B4962875b4E14b80E",
+      "explorer": "https://sepolia.etherscan.io/address/0x04680EF6Ef98C7bD64eC280B4962875b4E14b80E"
+    }
+  },
+  "agents": {
+    "tx_analyst": {
+      "address": "0x000000000000000000000000000b44f58a664dc7",
+      "did": "did:kai:11155111:0x000000000000000000000000000b44f58a664dc7",
+      "tx": ""
+    },
+    "portfolio_health": {
+      "address": "0x000000000000000000023eecddcb0b1e305cf933",
+      "did": "did:kai:11155111:0x000000000000000000023eecddcb0b1e305cf933",
+      "tx": ""
+    },
+    "contract_auditor": {
+      "address": "0x00000000000000000001fe4ee15e2c433689a4d1",
+      "did": "did:kai:11155111:0x00000000000000000001fe4ee15e2c433689a4d1",
+      "tx": ""
+    },
+    "dao_drafter": {
+      "address": "0x000000000000000000000000012ca5da01641a61",
+      "did": "did:kai:11155111:0x000000000000000000000000012ca5da01641a61",
+      "tx": ""
+    },
+    "commodity_pricing": {
+      "address": "0x0000000000000000003dcb5addffc4a42b34e0b4",
+      "did": "did:kai:11155111:0x0000000000000000003dcb5addffc4a42b34e0b4",
+      "tx": ""
+    },
+    "policy_recommender": {
+      "address": "0x0000000000000000086e1795541af07e4356a6dc",
+      "did": "did:kai:11155111:0x0000000000000000086e1795541af07e4356a6dc",
+      "tx": ""
+    },
+    "code_gen": {
+      "address": "0x00000000000000000000000000000291cc48adfe",
+      "did": "did:kai:11155111:0x00000000000000000000000000000291cc48adfe",
+      "tx": ""
+    },
+    "doc_summarizer": {
+      "address": "0x0000000000000000000000893f874929cd2ddcb8",
+      "did": "did:kai:11155111:0x0000000000000000000000893f874929cd2ddcb8",
+      "tx": ""
+    }
+  }
+}

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="KAI is a DeFi Banking Infrastructure built on Ethereum & Hedera — a Financial Operating System for SMEs, Community-Based Organisations, and everyday Africans.">
+    <title>KAI — DeFi Banking Infrastructure on Ethereum & Hedera</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header>
+        <div class="container nav-container">
+            <div class="brand">
+                <div class="brand-logo">K</div>
+                <div class="brand-title">KAI</div>
+            </div>
+            <button class="mobile-nav-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" onclick="toggleMobileNav(this)">☰</button>
+                    <ul class="nav-links">
+            <li><a href="problems.html">Problem</a></li>
+            <li><a href="solution.html">Solution</a></li>
+            <li class="dropdown">
+                <a href="products.html">Kai Products ▾</a>
+                <div class="dropdown-content">
+                    <a href="insurance.html">Insurance</a>
+                    <a href="pension.html">Pension</a>
+                    <a href="trust.html">Trust</a>
+                    <a href="tokens.html">Tokens</a>
+                    <a href="ecosystem.html">Ecosystem</a>
+                </div>
+            </li>
+            <li><a href="DAO.html">DAO</a></li>
+            <li><a href="bizcanvas.html">Business Canvas</a></li>
+        </ul>
+            <a href="https://kainuv-app-9v3m.vercel.app/" class="cta-btn" rel="noopener noreferrer">Launch App</a>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <span class="hero-badge mono"></span>
+            <h1>DeFi Banking Infrastructure<br>on <em>ETH</em></h1>
+            <p class="hero-subtitle">A Financial Operating System for SMEs, Community-Based Organisations, and Everyday Africans.</p>
+            <div class="hero-meta mono">
+                <span>Powered by ETH</span>
+                <span>•</span>
+                <span>Built on Ethereum & Hedera</span>
+                <span>•</span>
+                <span>www.kai.bar</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content Layout -->
+    <div class="container wp-layout">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar-toc">
+            <div class="toc-title mono">Table of Contents</div>
+            <ul class="toc-list">
+                <li><a href="#summary">1. Executive Summary</a></li>
+                <li><a href="#problem">2. The Problem</a></li>
+                <li><a href="#solution">3. The KAI Solution</a></li>
+                <li><a href="#core-assets">4. Core Asset Architecture</a></li>
+                <li><a href="#tokens">5. Token Architecture</a></li>
+                <li><a href="#products">6. Financial Products</a></li>
+                <li><a href="#tech">7. Technical Architecture</a></li>
+                <li><a href="#economic">8. Economic Model</a></li>
+                <li><a href="#target">9. Target Market</a></li>
+                <li><a href="#competitive">10. Competitive Landscape</a></li>
+                <li><a href="#roadmap">11. Development Roadmap</a></li>
+            </ul>
+        </aside>
+
+        <!-- Main Document Body -->
+        <main>
+
+            <!-- Legal Disclaimer -->
+            <div class="disclaimer-box">
+                <h4 class="mono">Legal Disclaimer</h4>
+                <p>This whitepaper is published by KAI Protocol for informational purposes only. It does not constitute financial advice, an investment solicitation, or an offer to sell any securities. Participation in the KAI ecosystem carries inherent risks. Digital assets, including ETH and KAI tokens, are subject to market volatility. Always refer to the official documentation at www.kai.bar.</p>
+            </div>
+
+            <!-- Metadata Table -->
+            <div class="table-container">
+                <table>
+                    <tbody>
+                        <tr>
+                            <th>Document Title</th>
+                            <td>KAI Whitepaper — DeFi Banking Infrastructure on Web3 </td>
+                        </tr>
+                        <tr>
+                            <th> </th>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <th>Status</th>
+                            <td>Public Release</td>
+                        </tr>
+                        <tr>
+                            <th>Official Website</th>
+                            <td><a href="https://www.kai.bar">www.kai.bar</a></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Section 1 -->
+            <section id="summary" class="content-section">
+                <div class="section-header">
+                    <span class="section-num mono">Section 01</span>
+                    <h2>Executive Summary</h2>
+                </div>
+                <p>Africa is home to over 1.4 billion people, the majority of whom remain significantly underserved by traditional financial institutions. High fees, geographic barriers, documentation requirements, and legacy infrastructure have locked hundreds of millions of individuals, small businesses, and community organisations out of basic savings, investment, and insurance products.</p>
+                <p>KAI is a decentralised financial infrastructure protocol built on the Ethereum & Hedera blockchain, purpose-engineered to dismantle these barriers. Operating at kai.bar, KAI functions as a full-stack DeFi banking layer — replacing banks with programmable vaults, pension funds with smart contracts, insurance companies with community pools, and trust administrators with autonomous on-chain logic.</p>
+                
+                <div class="grid-2">
+                    <div class="card">
+                        <h4>Core Asset Base</h4>
+                        <p>Anchored by native ETH/HBAR for near-zero cost real-time settlement and BTC.b (Ethereum & Hedera-bridged Bitcoin) for inflation-resistant store of value.</p>
+                    </div>
+                    <div class="card">
+                        <h4>Six Financial Instruments</h4>
+                        <p>Investment vaults, decentralised pensions, community insurance pools, trust infrastructure, SME treasuries, and RWA tokenisation.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2 -->
+            <section id="problem" class="content-section">
+                <div class="section-header">
+                    <span class="section-num mono">Section 02</span>
+                    <h2>The Problem</h2>
+                </div>
+                <p>Despite significant mobile penetration across Africa, structural barriers continue to exclude the majority of the continent's population from meaningful financial participation.</p>
+                
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Failure Area</th>
+                                <th>Scale of the Problem</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Unbanked Adults</td>
+                                <td>~57% of Sub-Saharan African adults lack formal bank accounts.</td>
+                            </tr>
+                            <tr>
+                                <td>Inflation Pressure</td>
+                                <td>Local currency savings are eroded annually by double-digit inflation in major markets.</td>
+                            </tr>
+                            <tr>
+                                <td>SME Capital Gap</td>
+                                <td>Estimated $330B+ annual SME financing gap across Sub-Saharan Africa.</td>
+                            </tr>
+                            <tr>
+                                <td>Remittance Costs</td>
+                                <td>Average intra-Africa corridor remittance fees exceed 8% per transaction.</td>
+                            </tr>
+                            <tr>
+                                <td>Insurance Gap</td>
+                                <td>Fewer than 3% of Sub-Saharan Africans hold any formal insurance product.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Section 3 -->
+            <section id="solution" class="content-section">
+                <div class="section-header">
+                    <span class="section-num mono">Section 03</span>
+                    <h2>The KAI Solution</h2>
+                </div>
+                <p>KAI replaces the structural components of traditional banking with decentralised, on-chain equivalents built on Ethereum & Hedera.</p>
+                
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Traditional System</th>
+                                <th>KAI Equivalent</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Traditional Bank</td>
+                                <td>Investment Vaults</td>
+                            </tr>
+                            <tr>
+                                <td>Pension Fund</td>
+                                <td>Smart Contract Pension System</td>
+                            </tr>
+                            <tr>
+                                <td>Insurance Company</td>
+                                <td>Community Insurance Pools</td>
+                            </tr>
+                            <tr>
+                                <td>Trust Administrator</td>
+                                <td>KAI Trust (Programmable Logic)</td>
+                            </tr>
+                            <tr>
+                                <td>Business Bank Account</td>
+                                <td>SME Digital Treasury</td>
+                            </tr>
+                            <tr>
+                                <td>Asset Registry</td>
+                                <td>Tokenisation-as-a-Service (RWA)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Section 4 -->
+            <section id="core-assets" class="content-section">
+                <div class="section-header">
+                    <span class="section-num mono">Section 04</span>
+                    <h2>Core Asset Architecture</h2>
+                </div>
+                <p>KAI's monetary foundation rests on two complementary assets that together address the dual requirements of daily utility and long-term wealth preservation.</p>
+                
+                <div class="grid-2">
+                    <div class="card">
+                        <h4>ETH — Settlement Layer</h4>
+                        <p>Provides sub-second finality, sub-cent transaction costs, network-level gas execution, and staking rewards for vault yield generation.</p>
+                    </div>
+                    <div class="card">
+                        <h4>BTC.b — Store of Value Layer</h4>
+                        <p>Ethereum & Hedera-bridged Bitcoin serving as the inflation-resistant monetary reserve, primary vault asset, and collateral base for financial products.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 5 -->
+            <section id="tokens" class="content-section">
+                <div class="section-header">
+                    <span class="section-num mono">Section 05</span>
+                    <h2>Token Architecture</h2>
+                </div>
+                <p>KAI employs a multi-token model designed to separate investment participation, risk stability, unit-of-account reserve, utility, and incentives.</p>
+                
+                <div class="grid-3">
+                    <div class="card">
+                        <h4 class="mono">YToken</h4>
+                        <p>Vault participation &amp; yield distribution token.</p>
+                    </div>
+                    <div class="card">
+                        <h4 class="mono">YBOB NUVARI</h4>
+                        <p>Volatility buffer &amp; drawdown protection layer.</p>
+                    </div>
+                    <div class="card">
+                        <h4 class="mono">YGOLD</h4>
+                        <p>Asset-backed multi-reserve unit of account.</p>
+                    </div>
+                    <div class="card">
+                        <h4 class="mono">GAMI</h4>
+                        <p>Community engagement &amp; governance incentive token.</p>
+                    </div>
+                    <div class="card">
+                        <h4 class="mono">KAINUVARI CENTS</h4>
+                        <p>Utility microtransactions &amp; gas abstraction layer.</p>
+                    </div>
+                    
+                </div>
+            </section>
+
+            <!-- Section 6 -->
+            <section id="products" class="content-section">
+                <div class="section-header">
+                    <span class="section-num mono">Section 06</span>
+                    <h2>Financial Products</h2>
+                </div>
+                <div class="grid-2">
+                    <div class="card">
+                        <h4>1. Investment Vaults</h4>
+                        <p>Automated non-custodial strategies earning passive yields on deposited ETH.</p>
+                    </div>
+                    <div class="card">
+                        <h4>2. Decentralised Pensions</h4>
+                        <p>Lock-conditioned compounding retirement vaults with AI-assisted contribution modelling.</p>
+                    </div>
+                    <div class="card">
+                        <h4>3. Community Insurance Pools</h4>
+                        <p>Peer-to-peer risk sharing eliminating profit-driven claim denials for agriculture and SMEs.</p>
+                    </div>
+                    <div class="card">
+                        <h4>4. KAI Trust</h4>
+                        <p>Programmable smart-contract trusts for automated family inheritance and multi-sig CBO treasuries.</p>
+                    </div>
+                    <div class="card">
+                        <h4>5. SME Digital Treasury</h4>
+                        <p>Inflation-hedged operating reserves with automated yield and capital credit lines.</p>
+                    </div>
+                    <div class="card">
+                        <h4>6. Tokenisation-as-a-Service</h4>
+                        <p>On-chain representation of real-world assets including land, standing timber, and carbon credits.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 7 -->
+            <section id="tech" class="content-section">
+                <div class="section-header">
+                    <span class="section-num mono">Section 07</span>
+                    <h2>Technical Architecture</h2>
+                </div>
+                <p>Engineered over Ethereum & Hedera, benefiting from EVM compatibility, sub-5-second aBFT finality, predictable sub-cent fees, and multi-channel access (Mobile App, Web, USSD for feature phones).</p>
+            </section>
+
+            <!-- Section 8 -->
+            <section id="economic" class="content-section">
+                <div class="section-header">
+                    <span class="section-num mono">Section 08</span>
+                    <h2>Economic Model</h2>
+                </div>
+                <p>Protocol sustainability is driven by non-principal performance fees, transaction routing fees, lending spreads, and RWA tokenisation charges. Revenue is distributed to user rewards, development, safety reserves, and token burns.</p>
+            </section>
+
+            <!-- Section 9 -->
+            <section id="target" class="content-section">
+                <div class="section-header">
+                    <span class="section-num mono">Section 09</span>
+                    <h2>Target Market</h2>
+                </div>
+                <p>Serving three key pillars: African SMEs requiring inflation-proof treasuries; Community-Based Organisations (Chamas, SACCOs, CFAs) seeking transparent pooling; and Individual Savers desiring USSD/mobile access to digital wealth.</p>
+            </section>
+
+            <!-- Section 10 -->
+            <section id="competitive" class="content-section">
+                <div class="section-header">
+                    <span class="section-num mono">Section 10</span>
+                    <h2>Competitive Advantage</h2>
+                </div>
+                <p>Unlike standard mobile money (payments only) or global DeFi (complex, high gas), KAI combines Ethereum & Hedera speed, USSD accessibility, Bitcoin backing, and community-first financial tooling in one seamless ecosystem.</p>
+            </section>
+
+            <!-- Section 11 -->
+            <section id="roadmap" class="content-section">
+                <div class="section-header">
+                    <span class="section-num mono">Section 11</span>
+                    <h2>Development Roadmap</h2>
+                </div>
+                <div class="card" style="margin-bottom: 16px;">
+                    <h4 class="mono">Phase 1 — Foundation (Q2–Q3 2026)</h4>
+                    <p>Mainnet vault deployment (kETH, kBTC), YToken &amp; KAI CENTS launch, mobile app &amp; USSD beta, security audit, and GAMI community program.</p>
+                </div>
+                <div class="card" style="margin-bottom: 16px;">
+                    <h4 class="mono">Phase 2 — Expansion (Q4 2026–Q1 2027)</h4>
+                    <p>Decentralised pensions, insurance pool pilots, KAI Trust rollout, YBOB stability integration, and expanded regional USSD support.</p>
+                </div>
+                <div class="card">
+                    <h4 class="mono">Phase 3 — SME &amp; RWA Integration (Q2–Q3 2027)</h4>
+                    <p>Full SME treasury credit lines, Tokenisation-as-a-Service for land and carbon credits, and YGOLD multi-reserve integration.</p>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <h5>KAI Protocol</h5>
+                    <p>DeFi Banking Infrastructure on Ethereum & Hedera.</p>
+                </div>
+                <div class="footer-col">
+                    <h5>Ecosystem</h5>
+                    <ul>
+                        <li><a href="index.html">Home</a></li>
+                        <li><a href="solution.html">Solution</a></li>
+                        <li><a href="products.html">Products</a></li>
+                        <li><a href="insurance.html">Insurance</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h5>Company</h5>
+                    <ul>
+                        <li><a href="problems.html">Problems We Solve</a></li>
+                        <li><a href="pension.html">Pension</a></li>
+                        <li><a href="trust.html">Trust</a></li>
+                        <li><a href="https://kainuv-app-9v3m.vercel.app/">Launch App</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 KAI Protocol. Built on Ethereum & Hedera Ecosystem. Powered by ETH. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+<script>
+function toggleMobileNav(button) {
+    const nav = document.querySelector('.nav-links');
+    if (!nav) return;
+    const isOpen = nav.classList.toggle('active');
+    button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const nav = document.querySelector('.nav-links');
+    const toggle = document.querySelector('.mobile-nav-toggle');
+    if (!nav || !toggle) return;
+
+    nav.querySelectorAll('a').forEach(function (link) {
+        link.addEventListener('click', function () {
+            nav.classList.remove('active');
+            toggle.setAttribute('aria-expanded', 'false');
+        });
+    });
+
+    document.addEventListener('click', function (event) {
+        if (window.innerWidth > 768) return;
+        if (!nav.contains(event.target) && !toggle.contains(event.target)) {
+            nav.classList.remove('active');
+            toggle.setAttribute('aria-expanded', 'false');
+        }
+    });
+});
+</script>
+
+</body>
+</html>

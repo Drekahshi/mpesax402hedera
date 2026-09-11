@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KAI Token Architecture — Whitepaper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest-dark:#1c3d2e;
+    --forest-deep:#122a20;
+    --forest-mid:#254a39;
+    --gold:#c9a24b;
+    --gold-bright:#e3c179;
+    --cream:#faf7f0;
+    --cream-dim:rgba(250,247,240,0.62);
+    --cream-faint:rgba(250,247,240,0.32);
+    --line:rgba(201,162,75,0.22);
+    --rule:rgba(250,247,240,0.12);
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  html{
+    scroll-behavior:smooth;
+    scroll-padding-top:24px;
+  }
+
+  body{
+    background:var(--forest-dark);
+    color:var(--cream);
+    font-family:'IBM Plex Sans', sans-serif;
+    font-weight:300;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+
+  a, button{
+    -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
+  }
+
+  .serif{font-family:'Fraunces', serif;}
+  .mono{font-family:'IBM Plex Mono', monospace;}
+
+  a{color:var(--gold-bright);}
+
+  /* ---------- layout shells ---------- */
+  .wrap{max-width:1080px; margin:0 auto; padding:0 32px;}
+  section{padding:96px 0;}
+  .rule{height:1px; background:var(--rule); width:100%;}
+
+  /* ---------- hero ---------- */
+  .hero{
+    min-height:92vh;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    position:relative;
+    background:
+      radial-gradient(ellipse 900px 500px at 15% 0%, rgba(201,162,75,0.10), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 100%, rgba(201,162,75,0.07), transparent 60%),
+      var(--forest-dark);
+    border-bottom:1px solid var(--line);
+    overflow:hidden;
+  }
+
+  .hero::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    background-image:
+      linear-gradient(var(--rule) 1px, transparent 1px),
+      linear-gradient(90deg, var(--rule) 1px, transparent 1px);
+    background-size:64px 64px;
+    opacity:0.35;
+    mask-image:radial-gradient(ellipse 70% 60% at 50% 40%, black, transparent);
+    pointer-events:none;
+  }
+
+  .hero-inner{position:relative; z-index:1;}
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.24em;
+    text-transform:uppercase;
+    color:var(--gold);
+    display:flex;
+    align-items:center;
+    gap:12px;
+  }
+  .eyebrow::before{content:""; width:28px; height:1px; background:var(--gold);}
+
+  .hero h1{
+    font-size:clamp(40px, 6vw, 76px);
+    font-weight:400;
+    letter-spacing:-0.01em;
+    line-height:1.04;
+    margin-top:22px;
+    max-width:920px;
+  }
+  .hero h1 em{
+    font-style:italic;
+    font-weight:300;
+    color:var(--gold-bright);
+  }
+
+  .hero p.lede{
+    margin-top:26px;
+    max-width:640px;
+    font-size:18px;
+    color:var(--cream-dim);
+    font-weight:300;
+  }
+
+  .hero-meta{
+    margin-top:56px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:40px;
+  }
+  .hero-meta div{border-left:1px solid var(--line); padding-left:16px;}
+  .hero-meta .k{font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:var(--cream-faint);}
+  .hero-meta .v{font-family:'Fraunces', serif; font-size:20px; color:var(--gold-bright); margin-top:4px;}
+
+  /* ---------- section headers ---------- */
+  .kicker{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.2em;
+    text-transform:uppercase;
+    color:var(--gold);
+    margin-bottom:14px;
+  }
+  h2.title{
+    font-family:'Fraunces', serif;
+    font-weight:400;
+    font-size:clamp(28px, 3.4vw, 42px);
+    letter-spacing:-0.01em;
+    max-width:760px;
+  }
+  .lead{
+    margin-top:18px;
+    max-width:700px;
+    color:var(--cream-dim);
+    font-size:16px;
+  }
+
+  /* ---------- architecture diagram ---------- */
+  .diagram{margin-top:64px; display:flex; flex-direction:column; align-items:center; gap:0;}
+
+  .layer{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:14px;
+    background:linear-gradient(180deg, rgba(250,247,240,0.03), rgba(250,247,240,0.01));
+    padding:26px 28px;
+  }
+  .layer-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10.5px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--cream-faint);
+    margin-bottom:16px;
+  }
+  .layer-cells{display:grid; gap:16px;}
+  .cell{
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:16px 18px;
+    background:rgba(28,61,46,0.4);
+  }
+  .cell .name{font-family:'Fraunces', serif; font-size:17px; color:var(--cream);}
+  .cell .sub{margin-top:4px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--gold-bright); letter-spacing:0.03em;}
+
+  .connector{
+    width:1px; height:36px;
+    background:linear-gradient(var(--gold), transparent);
+    position:relative;
+  }
+  .connector::after{
+    content:"";
+    position:absolute;
+    bottom:0; left:50%;
+    transform:translateX(-50%);
+    width:0; height:0;
+    border-left:4px solid transparent;
+    border-right:4px solid transparent;
+    border-top:6px solid var(--gold);
+  }
+
+  .layer.governance .layer-cells{grid-template-columns:1fr;}
+  .layer.vault .layer-cells{grid-template-columns:1fr 1fr;}
+  .layer.settlement .layer-cells{grid-template-columns:1.15fr 1fr;}
+  .layer.products .layer-cells{grid-template-columns:1.3fr 1fr;}
+
+  @media (max-width:720px){
+    .layer.vault .layer-cells,
+    .layer.settlement .layer-cells,
+    .layer.products .layer-cells{grid-template-columns:1fr;}
+  }
+
+  /* ---------- token cards ---------- */
+  .token-index{
+    display:flex; flex-wrap:wrap; gap:10px;
+    margin-top:36px;
+  }
+  .token-index a{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.05em;
+    text-decoration:none;
+    color:var(--cream-dim);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:8px 16px;
+    transition:all 0.15s ease;
+  }
+  .token-index a:hover{color:var(--gold-bright); border-color:var(--gold);}
+
+  .token{
+    padding:64px 0;
+    border-top:1px solid var(--rule);
+    display:grid;
+    grid-template-columns:280px 1fr;
+    gap:56px;
+    scroll-margin-top:24px;
+  }
+  @media (max-width:820px){ .token{grid-template-columns:1fr; gap:28px;} }
+
+  .token-id{position:sticky; top:40px; align-self:start;}
+  .token-num{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--gold);
+    letter-spacing:0.14em;
+  }
+  .token-symbol{
+    font-family:'Fraunces', serif;
+    font-size:44px;
+    color:var(--cream);
+    margin-top:8px;
+    line-height:1;
+  }
+  .token-name{color:var(--cream-dim); margin-top:6px; font-size:15px;}
+  .token-type{
+    margin-top:20px;
+    display:inline-block;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.06em;
+    color:var(--gold-bright);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:6px 10px;
+  }
+
+  .token-body h4{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--cream-faint);
+    margin-top:28px;
+    margin-bottom:10px;
+  }
+  .token-body h4:first-child{margin-top:0;}
+
+  .spec-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px 32px;}
+  .spec{border-left:2px solid var(--line); padding-left:14px;}
+  .spec .sk{font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--cream-faint); text-transform:uppercase; letter-spacing:0.08em;}
+  .spec .sv{margin-top:3px; font-family:'Fraunces', serif; font-size:18px; color:var(--gold-bright);}
+
+  .mechanics{list-style:none;}
+  .mechanics li{
+    position:relative;
+    padding-left:20px;
+    margin-bottom:12px;
+    color:var(--cream-dim);
+    font-size:15px;
+  }
+  .mechanics li::before{
+    content:"";
+    position:absolute; left:0; top:9px;
+    width:6px; height:6px;
+    background:var(--gold);
+    border-radius:1px;
+    transform:rotate(45deg);
+  }
+  .mechanics strong{color:var(--cream); font-weight:500;}
+
+  .basket{display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;}
+  .basket span{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--cream-dim);
+    background:rgba(250,247,240,0.05);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:5px 12px;
+  }
+
+  /* ---------- comparison matrix ---------- */
+  .matrix-wrap{overflow-x:auto; margin-top:40px; border:1px solid var(--line); border-radius:14px;}
+  table{width:100%; border-collapse:collapse; min-width:760px;}
+  thead th{
+    text-align:left;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--gold);
+    padding:18px 20px;
+    border-bottom:1px solid var(--line);
+    background:rgba(250,247,240,0.02);
+  }
+  tbody td{
+    padding:18px 20px;
+    border-bottom:1px solid var(--rule);
+    font-size:14px;
+    color:var(--cream-dim);
+    vertical-align:top;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  tbody td.tok{font-family:'Fraunces', serif; font-size:17px; color:var(--cream);}
+  tbody td.cap{font-family:'IBM Plex Mono', monospace; color:var(--gold-bright);}
+
+  /* ---------- footer ---------- */
+  footer{padding:56px 0 80px; border-top:1px solid var(--line);}
+  footer .foot-grid{display:flex; justify-content:space-between; flex-wrap:wrap; gap:20px;}
+  footer .brand{font-family:'Fraunces', serif; font-size:20px; color:var(--gold-bright);}
+  footer .disclaimer{max-width:520px; font-size:12.5px; color:var(--cream-faint); line-height:1.7;}
+
+  @media (max-width:760px){
+    .wrap{padding:0 18px;}
+    section{padding:72px 0;}
+    .hero{min-height:auto; padding:84px 0 72px;}
+    .hero h1{font-size:clamp(32px, 8vw, 46px); line-height:1.08;}
+    .hero p.lede{font-size:16px; margin-top:20px;}
+    .hero-meta{margin-top:36px; gap:16px 20px;}
+    .hero-meta div{padding-left:12px;}
+    .hero-meta .v{font-size:18px;}
+    .layer{padding:20px 18px; border-radius:12px;}
+    .layer-cells{gap:12px;}
+    .cell{padding:14px 15px;}
+    .cell .name{font-size:15px;}
+    .cell .sub{font-size:10.5px;}
+    .token-index{margin-top:26px; gap:8px;}
+    .token-index a{font-size:11px; padding:7px 12px;}
+    .token-id{position:static; top:auto;}
+    .token-symbol{font-size:32px;}
+    .token-name{font-size:14px;}
+    .token-type{font-size:10.5px; padding:6px 9px;}
+    .spec-grid{grid-template-columns:1fr; gap:12px;}
+    .mechanics li{font-size:14px;}
+    .basket{gap:6px;}
+    .basket span{font-size:11px; padding:5px 10px;}
+    .matrix-wrap{border-radius:10px;}
+    table{min-width:640px;}
+    thead th, tbody td{padding:14px 12px; font-size:13px;}
+    footer{padding:48px 0 64px;}
+    footer .foot-grid{flex-direction:column; gap:14px;}
+  }
+
+  @media (max-width:480px){
+    .hero{padding:72px 0 62px;}
+    .hero h1{font-size:clamp(28px, 9vw, 36px);}
+    .hero p.lede{font-size:15px;}
+    .token-index{flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px;}
+    .token-index a{white-space:nowrap;}
+    .token-symbol{font-size:28px;}
+  }
+
+  ::selection{background:var(--gold); color:var(--forest-dark);}
+
+/* ---------- site nav / footer (scoped to this page's own palette) ---------- */
+.site-nav{
+  position:sticky; top:0; z-index:20;
+  background:rgba(18,42,32,0.92);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.site-nav .wrap{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 32px; flex-wrap:wrap; gap:14px;
+}
+.site-nav .brand{
+  font-family:'Fraunces', serif; font-size:18px; color:var(--cream);
+  display:flex; align-items:center; gap:10px; text-decoration:none;
+}
+.site-nav .brand .mark{
+  width:28px; height:28px; border-radius:50%; background:var(--gold);
+  color:var(--forest-dark); font-weight:700; display:flex; align-items:center; justify-content:center;
+}
+.site-nav .links{display:flex; flex-wrap:wrap; gap:22px;}
+.site-nav .links a{
+  font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.06em;
+  text-transform:uppercase; color:var(--cream-dim); text-decoration:none;
+}
+.site-nav .links a:hover, .site-nav .links a.active{color:var(--gold-bright);}
+.site-foot{border-top:1px solid var(--line); padding:40px 0 60px; margin-top:40px;}
+.site-foot .wrap{display:flex; justify-content:space-between; flex-wrap:wrap; gap:20px;}
+.site-foot .links{display:flex; flex-wrap:wrap; gap:18px;}
+.site-foot .links a{
+  font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--cream-dim); text-decoration:none;
+}
+.site-foot .links a:hover{color:var(--gold-bright);}
+</style>
+</head>
+<body>
+
+<!-- ===================== SITE NAV ===================== -->
+<nav class="site-nav">
+  <div class="wrap">
+    <a class="brand" href="index.html"><span class="mark">K</span> KAI</a>
+    <div class="links">
+      <a href="index.html">Home</a>
+      <a href="problems.html">Problem</a>
+      <a href="solution.html">Solution</a>
+      <a href="products.html">Products</a>
+      <a href="insurance.html">Insurance</a>
+      <a href="pension.html">Pension</a>
+      <a href="trust.html">Trust</a>
+      <a href="ecosystem.html">Ecosystem</a>
+      <a href="tokens.html" class="active">Tokens</a>
+      <a href="DAO.html">DAO</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ===================== HERO ===================== -->
+<header class="hero">
+  <div class="wrap hero-inner">
+    <div class="eyebrow">KAI Protocol · Technical Whitepaper</div>
+    <h1>Six tokens.<br>One <em>settlement engine</em>.</h1>
+    <p class="lede">
+      A token architecture built on Ethereum & Hedera — engineered so that
+      governance, yield, settlement, and reward stay compartmentalized, auditable, and built for
+      users who may never hold a wallet balance in the traditional sense.
+    </p>
+    <div class="hero-meta">
+      <div>
+        <div class="k">Chains</div>
+        <div class="v">Ethereum & Hedera</div>
+      </div>
+      <div>
+        <div class="k">Tokens</div>
+        <div class="v">6 compartments</div>
+      </div>
+      <div>
+        <div class="k">Buffer layer</div>
+        <div class="v">yBOB</div>
+      </div>
+      <div>
+        <div class="k">Entry point</div>
+        <div class="v">CENTS</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== OVERVIEW ===================== -->
+<section>
+  <div class="wrap">
+    <div class="kicker">01 — Architecture Overview</div>
+    <h2 class="title">A multi-chain framework, built for two different jobs.</h2>
+    <p class="lead">
+      KAI runs entirely on Ethereum & Hedera because one chain already does both jobs well. Sub-second
+      finality and near-zero fees make it viable for cents-denominated savings, insurance premiums,
+      and pension top-ups moving constantly in the background, while deep DeFi liquidity and full
+      EVM composability make it the venue for yield strategy execution. Each of the six tokens keeps
+      a role that stays compartmentalized rather than overlapping — governance doesn't touch the
+      buffer layer, the buffer layer doesn't touch rewards, and rewards never carry investment risk.
+    </p>
+
+    <div class="diagram">
+      <div class="layer governance">
+        <div class="layer-label">Governs Parameters</div>
+        <div class="layer-cells">
+          <div class="cell">
+            <div class="name">NVR — Governance &amp; DAO</div>
+            <div class="sub">Cross-chain voting · treasury · protocol fees</div>
+          </div>
+        </div>
+      </div>
+      <div class="connector"></div>
+
+      <div class="layer vault">
+        <div class="layer-label">Yield Vault Layer</div>
+        <div class="layer-cells">
+          <div class="cell">
+            <div class="name">YTOKEN</div>
+            <div class="sub">2.1B cap · diversified yield basket · 14.8% vault APY</div>
+          </div>
+          <div class="cell">
+            <div class="name">YGOLD</div>
+            <div class="sub">4.2B cap · gold-anchored defensive vault · 12.4% vault APY</div>
+          </div>
+        </div>
+      </div>
+      <div class="connector"></div>
+
+      <div class="layer settlement">
+        <div class="layer-label">Buffer &amp; Pipeline Layer</div>
+        <div class="layer-cells">
+          <div class="cell">
+            <div class="name">yBOB</div>
+            <div class="sub">7.5% vault APY · absorbs drawdown before payouts</div>
+          </div>
+          <div class="cell">
+            <div class="name">CENTS</div>
+            <div class="sub">Micro-entry · restaking receipt</div>
+          </div>
+        </div>
+      </div>
+      <div class="connector"></div>
+
+      <div class="layer products">
+        <div class="layer-label">Automated Products &amp; Incentives Layer</div>
+        <div class="layer-cells">
+          <div class="cell">
+            <div class="name">Insurance · Pension · Trust · SME Treasuries</div>
+            <div class="sub">Funded automatically from vault yield via x402</div>
+          </div>
+          <div class="cell">
+            <div class="name">GAMI</div>
+            <div class="sub">Rewards, referrals &amp; prediction markets</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="token-index">
+      <a href="#nvr">NVR</a>
+      <a href="#stable">yBOB</a>
+      <a href="#ytoken">YTOKEN</a>
+      <a href="#ygold">YGOLD</a>
+      <a href="#gami">GAMI</a>
+      <a href="#cents">CENTS</a>
+    </div>
+  </div>
+</section>
+
+<div class="wrap"><div class="rule"></div></div>
+
+<!-- ===================== TOKEN DETAIL ===================== -->
+<section style="padding-top:72px;">
+  <div class="wrap">
+    <div class="kicker">02 — Token Specifications</div>
+    <h2 class="title">Each token, in detail.</h2>
+
+    <!-- NVR -->
+    <article class="token" id="nvr">
+      <div class="token-id">
+        <div class="token-num">01 / 06</div>
+        <div class="token-symbol">NVR</div>
+        <div class="token-name">Governance &amp; Protocol Utility</div>
+        <div class="token-type">Governance · Revenue Share</div>
+      </div>
+      <div class="token-body">
+        <h4>Specification</h4>
+        <div class="spec-grid">
+          <div class="spec"><div class="sk">Max Supply</div><div class="sv">50,000,000 NVR</div></div>
+          <div class="spec"><div class="sk">Chain Split</div><div class="sv">Ethereum & Hedera</div></div>
+        </div>
+
+        <h4>Architecture &amp; Mechanics</h4>
+        <ul class="mechanics">
+          <li><strong>Cross-chain governance</strong> — coordinated via a shared governance module using cross-chain message passing between Ethereum & Hedera, so a single vote carries weight on both deployments.</li>
+          <li><strong>Protocol control</strong> — NVR holders vote on protocol parameters, vault strategy approvals, fee structures, risk parameters, and treasury allocations.</li>
+          <li><strong>Revenue distribution</strong> — protocol revenue from vault performance fees, escrow, and transaction fees flows to staked NVR holders.</li>
+          <li><strong>Deflationary mechanism</strong> — periodic buyback-and-burn actions reduce circulating supply over time.</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- yBOB -->
+    <article class="token" id="stable">
+      <div class="token-id">
+        <div class="token-num">02 / 06</div>
+        <div class="token-symbol">yBOB</div>
+        <div class="token-name">Volatility Buffer &amp; Drawdown Protection</div>
+        <div class="token-type">Buffer · Vault Receipt</div>
+      </div>
+      <div class="token-body">
+        <h4>Specification</h4>
+        <div class="spec-grid">
+          <div class="spec"><div class="sk">Supply</div><div class="sv">Elastic, vault-linked</div></div>
+          <div class="spec"><div class="sk">Vault APY</div><div class="sv">7.5%</div></div>
+        </div>
+
+        <h4>Architecture &amp; Mechanics</h4>
+        <ul class="mechanics">
+          <li><strong>Drawdown absorption</strong> — sits between the yield vaults and every downstream payout, so a bad week in the market shows up as a smaller buffer, not a missed insurance premium or pension distribution.</li>
+          <li><strong>Vault-linked yield</strong> — earns a steady 7.5% vault APY while it sits as a buffer, so protection doesn't come at the cost of idle capital.</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- YTOKEN -->
+    <article class="token" id="ytoken">
+      <div class="token-id">
+        <div class="token-num">03 / 06</div>
+        <div class="token-symbol">YTOKEN</div>
+        <div class="token-name">Diversified Yield Vault</div>
+        <div class="token-type">Investment Vault · Basket Token</div>
+      </div>
+      <div class="token-body">
+        <h4>Specification</h4>
+        <div class="spec-grid">
+          <div class="spec"><div class="sk">Max Supply</div><div class="sv">2.1B YTOKEN</div></div>
+          <div class="spec"><div class="sk">Chains</div><div class="sv">Ethereum & Hedera</div></div>
+        </div>
+
+        <h4>Composition Basket</h4>
+        <div class="basket">
+          <span>Native Ethereum & Hedera BTC (BTC.b)</span>
+          <span>ETH staking rewards</span>
+          <span>Ethereum & Hedera DeFi yield strategies</span>
+          <span>Bonzo Finance exposure</span>
+          <span>SauceSwap liquidity rewards</span>
+          <span>ETH &amp; Kenyan infrastructure bonds</span>
+        </div>
+
+        <h4>Architecture &amp; Mechanics</h4>
+        <ul class="mechanics">
+          <li><strong>Single liquid receipt</strong> — one token represents exposure to the full diversified pool of income-generating positions above.</li>
+          <li><strong>Automated yield flow</strong> — compounding returns generated via the Vault Manager and Yield Router smart contracts automatically fund downstream products like pension contributions and insurance premiums.</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- YGOLD -->
+    <article class="token" id="ygold">
+      <div class="token-id">
+        <div class="token-num">04 / 06</div>
+        <div class="token-symbol">YGOLD</div>
+        <div class="token-name">Commodity-Backed Yield Vault</div>
+        <div class="token-type">Commodity-Anchored Vault Token</div>
+      </div>
+      <div class="token-body">
+        <h4>Specification</h4>
+        <div class="spec-grid">
+          <div class="spec"><div class="sk">Max Supply</div><div class="sv">4.2B YGOLD</div></div>
+          <div class="spec"><div class="sk">Chains</div><div class="sv">Ethereum & Hedera</div></div>
+        </div>
+
+        <h4>Composition Basket</h4>
+        <div class="basket">
+          <span>Tokenized physical gold</span>
+          <span>Ethereum & Hedera DeFi yield strategies</span>
+          <span>ETH</span>
+          <span>USDC</span>
+        </div>
+
+        <h4>Architecture &amp; Mechanics</h4>
+        <ul class="mechanics">
+          <li><strong>Defensive asset layer</strong> — designed as an inflation-resistant store of value for risk-conscious savers, Community Forest Associations (CFAs), CBOs, and SACCOs.</li>
+          <li><strong>Yield engine</strong> — combines the inflation-hedging properties of physical gold with underlying DeFi yield strategies to keep capital compounding even in its defensive posture.</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- GAMI -->
+    <article class="token" id="gami">
+      <div class="token-id">
+        <div class="token-num">05 / 06</div>
+        <div class="token-symbol">GAMI</div>
+        <div class="token-name">Community Rewards &amp; Engagement</div>
+        <div class="token-type">Social · Participation · Prediction</div>
+      </div>
+      <div class="token-body">
+        <h4>Specification</h4>
+        <div class="spec-grid">
+          <div class="spec"><div class="sk">Max Supply</div><div class="sv">8.4B GAMI</div></div>
+          <div class="spec"><div class="sk">Chains</div><div class="sv">Ethereum & Hedera</div></div>
+        </div>
+
+        <h4>Architecture &amp; Mechanics</h4>
+        <ul class="mechanics">
+          <li><strong>Non-investment allocation</strong> — distributed strictly as a reward for positive ecosystem behavior, never sold as an investment vehicle.</li>
+          <li><strong>Rewarded behaviors</strong> — consistent vault savings contributions, community data verification (e.g. forest activity logs by CFAs), peer referrals and platform engagement, and community insurance contributions and prediction market participation.</li>
+          <li><strong>Ecosystem utility</strong> — the primary behavioral incentive currency, and the medium for localized prediction markets.</li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- CENTS -->
+    <article class="token" id="cents">
+      <div class="token-id">
+        <div class="token-num">06 / 06</div>
+        <div class="token-symbol">CENTS</div>
+        <div class="token-name">Micro-Savings &amp; Restaking</div>
+        <div class="token-type">Restaking · Vault Receipt Token</div>
+      </div>
+      <div class="token-body">
+        <h4>Specification</h4>
+        <div class="spec-grid">
+          <div class="spec"><div class="sk">Supply</div><div class="sv">Elastic, vault-linked</div></div>
+          <div class="spec"><div class="sk">Chains</div><div class="sv">Ethereum & Hedera</div></div>
+        </div>
+
+        <h4>Architecture &amp; Mechanics</h4>
+        <ul class="mechanics">
+          <li><strong>Micro-entry point</strong> — lets users start saving with minimal capital, cents at a time, bypassing regular vault deposit thresholds.</li>
+          <li><strong>Restaking infrastructure</strong> — acts as a vault receipt token that can be restaked via the protocol's Restaking Module to stack additional yield layers.</li>
+          <li><strong>Abstraction engine</strong> — handles gas fee abstraction and micro-transactions for users without an ETH or ETH balance, enabling seamless USSD/mobile transactions.</li>
+        </ul>
+      </div>
+    </article>
+  </div>
+</section>
+
+<div class="wrap"><div class="rule"></div></div>
+
+<!-- ===================== COMPARISON MATRIX ===================== -->
+<section>
+  <div class="wrap">
+    <div class="kicker">03 — Structural Comparison</div>
+    <h2 class="title">All six, side by side.</h2>
+    <p class="lead">A single reference for chain deployment, supply, role, and the underlying mechanism behind each token.</p>
+
+    <div class="matrix-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>Chain Deployment</th>
+            <th>Supply Cap</th>
+            <th>Primary Role</th>
+            <th>Underlying Asset / Mechanism</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="tok">NVR</td>
+            <td>Ethereum & Hedera</td>
+            <td class="cap">50M</td>
+            <td>Protocol governance &amp; utility</td>
+            <td>Staking, voting, protocol revenue sharing</td>
+          </tr>
+          <tr>
+            <td class="tok">yBOB</td>
+            <td>Ethereum & Hedera</td>
+            <td class="cap">Elastic</td>
+            <td>Volatility buffer</td>
+            <td>Vault receipt · 7.5% APY · absorbs drawdown first</td>
+          </tr>
+          <tr>
+            <td class="tok">YTOKEN</td>
+            <td>Ethereum & Hedera</td>
+            <td class="cap">2.1B</td>
+            <td>Growth investment vault</td>
+            <td>ETH staking, Trader Joe, Benqi, bonds</td>
+          </tr>
+          <tr>
+            <td class="tok">YGOLD</td>
+            <td>Ethereum & Hedera</td>
+            <td class="cap">4.2B</td>
+            <td>Defensive investment vault</td>
+            <td>Tokenized gold + USDC/ETH DeFi yields</td>
+          </tr>
+          <tr>
+            <td class="tok">GAMI</td>
+            <td>Ethereum & Hedera</td>
+            <td class="cap">8.4B</td>
+            <td>Behavioral rewards</td>
+            <td>Distributed via active platform engagement</td>
+          </tr>
+          <tr>
+            <td class="tok">CENTS</td>
+            <td>Ethereum & Hedera</td>
+            <td class="cap">Elastic</td>
+            <td>Micro-savings &amp; restaking</td>
+            <td>Restaked vault receipts &amp; gas abstraction</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="brand">KAI Protocol</div>
+      <p class="disclaimer">
+        This document describes the technical architecture of the KAI token ecosystem for
+        informational purposes. Supply caps, collateralization ratios, and mechanisms are subject
+        to change via protocol governance. This is not an offer to sell or a solicitation of an
+        offer to buy any security.
+      </p>
+    </div>
+  </div>
+</footer>
+
+<div class="site-foot">
+  <div class="wrap">
+    <div class="links">
+      <a href="index.html">Home</a>
+      <a href="problems.html">Problem</a>
+      <a href="solution.html">Solution</a>
+      <a href="products.html">Products</a>
+      <a href="ecosystem.html">Ecosystem</a>
+      <a href="DAO.html">DAO</a>
+    </div>
+    <span style="font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--cream-faint);">&copy; 2026 KAI Protocol. Built on Ethereum & Hedera.</span>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,637 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          UserRole  @default(MEMBER)
+  walletAddress String?   @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  kaiProfile    KaiUser?
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+/// A KAI Nuvari platform user profile.
+/// Linked to the Auth.js User via authUserId for session-aware queries.
+model KaiUser {
+  id         String      @id @default(cuid())
+  name       String
+  email      String      @unique
+  phone      String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  authUserId String?     @unique
+  /// Privy user ID from Google login (PRD 1 auth linkage).
+  privyUserId String?    @unique
+  /// Unique referral code shared with friends (PRD 2 §6), e.g. AUST92.
+  referralCode String?   @unique
+  /// Set to REVIEW / BLOCKED by anti-abuse tooling (PRD 2 §13).
+  status     KaiUserStatus @default(NORMAL)
+  activities Activity[]
+  authUser   User?       @relation(fields: [authUserId], references: [id])
+  wallets    KaiWallet[]
+  kaiBarLedger    KaiBarLedger[]
+  taskCompletions TaskCompletion[]
+  airdropEligibility AirdropEligibility?
+  sentReferrals   Referral[] @relation("Referrer")
+  receivedReferrals Referral[] @relation("Referred")
+
+  @@map("kai_users")
+}
+
+/// A blockchain wallet belonging to a KAI user.
+/// Supports multiple chains. Private keys are NEVER stored here.
+model KaiWallet {
+  id        String   @id @default(cuid())
+  userId    String
+  chain     Chain
+  address   String
+  balance   Decimal  @default(0) @db.Decimal(38, 18)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      KaiUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([address])
+  @@map("kai_wallets")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  KAI BAR — REWARDS & AIRDROP (PRD 2)
+// ═══════════════════════════════════════════════════════════════
+
+/// Append-only ledger of every Kai Bar point event (PRD 2 §4).
+/// Balance is computed by summing these rows — never stored as a single
+/// overwritable number so it stays auditable.
+model KaiBarLedger {
+  id          String          @id @default(cuid())
+  userId      String
+  type        KaiBarEntryType
+  /// Signed amount, e.g. +1000 or -100 for an adjustment.
+  amount      Int
+  description String
+  referenceId String?
+  createdAt   DateTime        @default(now())
+
+  user        KaiUser         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([referenceId])
+  @@map("kai_bar_ledger")
+}
+
+/// Configurable reward task definitions (PRD 2 §9). Frontend renders
+/// whatever tasks have active === true.
+model RewardTask {
+  id              String         @id @default(cuid())
+  name            String
+  description     String?
+  rewardAmount    Int
+  taskType        RewardTaskType
+  active          Boolean        @default(true)
+  maxCompletions  Int?
+  createdAt       DateTime       @default(now())
+
+  completions     TaskCompletion[]
+
+  @@index([active])
+  @@map("reward_tasks")
+}
+
+/// Records which user completed which task (anti-repeat guard, PRD 2 §13).
+model TaskCompletion {
+  id        String    @id @default(cuid())
+  userId    String
+  taskId    String
+  createdAt DateTime  @default(now())
+
+  user      KaiUser   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task      RewardTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId])
+  @@index([taskId])
+  @@map("task_completions")
+}
+
+/// Referral tree — records the full network (PRD 2 §6, §8).
+/// A referral is only rewarded after the referred user hits a milestone.
+model Referral {
+  id             String          @id @default(cuid())
+  referrerUserId String
+  referredUserId String
+  referralCode   String
+  status         ReferralStatus  @default(PENDING)
+  createdAt      DateTime        @default(now())
+  rewardedAt     DateTime?
+
+  referrer       KaiUser         @relation("Referrer", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referred       KaiUser         @relation("Referred", fields: [referredUserId], references: [id], onDelete: Cascade)
+
+  @@index([referrerUserId])
+  @@index([referredUserId])
+  @@index([referralCode])
+  @@map("referrals")
+}
+
+/// Airdrop eligibility snapshot per user (PRD 2 §11).
+model AirdropEligibility {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  eligible          Boolean  @default(false)
+  contributionScore Int      @default(0)
+  referralScore     Int      @default(0)
+  activityScore     Int      @default(0)
+  updatedAt         DateTime @updatedAt
+
+  user              KaiUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("airdrop_eligibility")
+}
+
+/// An audit-style record of important user actions on the KAI platform.
+model Activity {
+  id          String         @id @default(cuid())
+  userId      String
+  type        ActivityType
+  description String?
+  amount      Decimal?       @db.Decimal(38, 18)
+  status      ActivityStatus @default(PENDING)
+  createdAt   DateTime       @default(now())
+  user        KaiUser        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@map("activities")
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  reference       String   @unique
+  amount_subunits BigInt   @default(0)
+  currency        String   @default("KES")
+  status          String   @default("pending")
+  email           String?
+  nft_id          String?
+  nft_name        String?
+  wallet          String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([wallet])
+  @@map("payments")
+}
+
+model CreatorPayout {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  payoutType    String   @default("mobile_money") // mobile_money | kepss
+  bankCode      String?
+  accountNumber String
+  accountName   String?
+  recipientCode String?
+  currency      String   @default("KES")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("creator_payouts")
+}
+
+
+enum UserRole {
+  MEMBER
+  FOREST_GUARDIAN
+  SME
+  ADMIN
+}
+
+enum Chain {
+  ARBITRUM
+  ETHEREUM
+}
+
+/// Anti-abuse triage for users/rewards (PRD 2 §13).
+enum KaiUserStatus {
+  NORMAL
+  REVIEW
+  BLOCKED
+}
+
+/// Why a Kai Bar amount was credited/debited (PRD 2 §4).
+enum KaiBarEntryType {
+  WELCOME_BONUS
+  PROFILE_COMPLETION
+  EMAIL_VERIFIED
+  REFERRAL
+  REFERRAL_REFERRER
+  REFERRAL_SECOND_LEVEL
+  FIRST_TRANSACTION
+  COMMUNITY_ACTIVITY
+  CAMPAIGN
+  TASK
+  ADJUSTMENT
+}
+
+/// Which RewardTask family an entry belongs to (PRD 2 §9).
+enum RewardTaskType {
+  SIGNUP
+  EMAIL_VERIFY
+  COMPLETE_PROFILE
+  INVITE_FRIEND
+  FIRST_TRANSACTION
+  DAILY_CHECKIN
+  CAMPAIGN
+  OTHER
+}
+
+enum ReferralStatus {
+  PENDING
+  VALID
+  REWARDED
+  INVALID
+}
+
+enum ActivityType {
+  WALLET_CREATED
+  DEPOSIT
+  WITHDRAWAL
+  INVESTMENT
+  POLICY_CREATED
+  TRANSACTION
+}
+
+enum ActivityStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  KAI EXTENDED SCHEMA — CFA / MSME / CHAMA
+//  Added from docs/digital-mrv-db-design.md
+//              docs/msme-chama-intelligent-ledger-prd.md
+// ═══════════════════════════════════════════════════════════════
+
+// ── 1. COMMUNITY FOREST ASSOCIATION (CFA) ───────────────────────
+
+model CommunityForest {
+  id             String         @id @default(cuid())
+  name           String
+  did            String         @unique
+  locationRegion String
+  boundaryGeoJson Json          @default("{}")
+  establishedAt  DateTime
+  treasuryWallet String?
+  totalHectares  Float          @default(0)
+  carbonCredits  Float          @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  members        ForestMember[]
+  zones          ForestZone[]
+  patrols        PatrolLog[]
+  govProposals   GovProposal[]
+  forestProducts ForestProduct[]
+
+  @@map("community_forests")
+}
+
+model ForestMember {
+  id          String          @id @default(cuid())
+  forestId    String
+  name        String
+  role        ForestMemberRole @default(GUARDIAN)
+  wallet      String?
+  phoneNumber String?
+  joinedAt    DateTime        @default(now())
+  isActive    Boolean         @default(true)
+
+  forest      CommunityForest  @relation(fields: [forestId], references: [id], onDelete: Cascade)
+  patrols     PatrolLog[]
+
+  @@index([forestId])
+  @@map("forest_members")
+}
+
+enum ForestMemberRole {
+  GUARDIAN
+  AUDITOR
+  ADMIN
+  TREASURER
+}
+
+model ForestZone {
+  id          String          @id @default(cuid())
+  forestId    String
+  zoneName    String
+  areaHa      Float
+  treeCount   Int             @default(0)
+  status      ZoneStatus      @default(ACTIVE)
+  createdAt   DateTime        @default(now())
+
+  forest      CommunityForest @relation(fields: [forestId], references: [id], onDelete: Cascade)
+  patrols     PatrolLog[]
+
+  @@map("forest_zones")
+}
+
+enum ZoneStatus {
+  ACTIVE
+  UNDER_THREAT
+  RESTORED
+  PROTECTED
+}
+
+model PatrolLog {
+  id           String          @id @default(cuid())
+  forestId     String
+  memberId     String
+  zoneId       String?
+  patrolDate   DateTime        @default(now())
+  durationMins Int             @default(0)
+  treesPlanted Int             @default(0)
+  incidentType String?
+  notes        String?
+  gpsLat       Float?
+  gpsLng       Float?
+  ipfsEvidenceHash String?
+  status       PatrolStatus    @default(COMPLETED)
+
+  forest       CommunityForest @relation(fields: [forestId], references: [id], onDelete: Cascade)
+  member       ForestMember    @relation(fields: [memberId], references: [id])
+  zone         ForestZone?     @relation(fields: [zoneId], references: [id])
+
+  @@index([forestId])
+  @@index([patrolDate])
+  @@map("patrol_logs")
+}
+
+enum PatrolStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  FLAGGED
+}
+
+model ForestProduct {
+  id          String          @id @default(cuid())
+  forestId    String
+  name        String
+  category    String
+  apyPercent  Float           @default(0)
+  token       String
+  status      String          @default("Active")
+  memberCount Int             @default(0)
+  tvlKes      Float           @default(0)
+  createdAt   DateTime        @default(now())
+
+  forest      CommunityForest @relation(fields: [forestId], references: [id], onDelete: Cascade)
+
+  @@map("forest_products")
+}
+
+model GovProposal {
+  id          String          @id @default(cuid())
+  forestId    String
+  proposalRef String          @unique
+  title       String
+  description String?
+  votesFor    Int             @default(0)
+  votesAgainst Int            @default(0)
+  tokenSymbol String          @default("NVR")
+  status      ProposalStatus  @default(ACTIVE)
+  deadline    DateTime?
+  createdAt   DateTime        @default(now())
+
+  forest      CommunityForest @relation(fields: [forestId], references: [id], onDelete: Cascade)
+
+  @@map("gov_proposals")
+}
+
+enum ProposalStatus {
+  ACTIVE
+  PASSED
+  FAILED
+  EXPIRED
+}
+
+// ── 2. MSME INTELLIGENT LEDGER ───────────────────────────────────
+
+model MsmeBusiness {
+  id              String           @id @default(cuid())
+  businessName    String
+  ownerName       String
+  phoneNumber     String           @unique
+  walletAddress   String?
+  category        BusinessCategory @default(RETAIL_SHOP)
+  location        String
+  cashFlowScore   Float            @default(50.0)
+  creditLimit     Float            @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  ledgerEntries   LedgerEntry[]
+  cashFlowTokens  CashFlowToken[]
+
+  @@map("msme_businesses")
+}
+
+enum BusinessCategory {
+  AGRI_SUPPLIES
+  RETAIL_SHOP
+  HARDWARE
+  PHARMACEUTICAL
+  TEXTILE_CRAFTS
+  PRODUCE_DISTRIBUTOR
+}
+
+model LedgerEntry {
+  id               String      @id @default(cuid())
+  businessId       String
+  type             EntryType
+  amountKes        Float
+  counterpartyName String?
+  description      String
+  categoryTag      String
+  paymentMethod    String      @default("CASH")
+  receiptIpfsHash  String?
+  aiAdvice         String?
+  timestamp        DateTime    @default(now())
+
+  business         MsmeBusiness @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([type])
+  @@map("ledger_entries")
+}
+
+enum EntryType {
+  INCOME
+  EXPENSE
+  CREDIT_GIVEN
+  DEBT_OWED
+}
+
+model CashFlowToken {
+  id               String          @id @default(cuid())
+  tokenRef         String          @unique
+  businessId       String
+  invoiceAmountKes Float
+  discountPriceKes Float
+  maturityDate     DateTime
+  debtorName       String
+  status           TokenizedStatus @default(DRAFT)
+  nftTokenId       String?
+  fundedByInvestor String?
+  createdAt        DateTime        @default(now())
+
+  business         MsmeBusiness    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("cash_flow_tokens")
+}
+
+enum TokenizedStatus {
+  DRAFT
+  LISTED_FOR_FUNDING
+  FUNDED
+  SETTLED_PAID
+  DEFAULTED
+}
+
+// ── 3. CHAMA / SAVINGS GROUP ──────────────────────────────────────
+
+model ChamaGroup {
+  id                    String            @id @default(cuid())
+  groupName             String
+  registrationNumber    String?
+  cyclePeriodDays       Int               @default(30)
+  contributionAmount    Float
+  totalPoolBalanceKes   Float             @default(0)
+  yieldAllocatedKes     Float             @default(0)
+  activeVaultStrategy   VaultStrategyType @default(BALANCED_YBOB_VAULT)
+  groupWallet           String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  members               ChamaMember[]
+  contributions         ChamaContribution[]
+  yieldLogs             ChamaYieldLog[]
+
+  @@map("chama_groups")
+}
+
+enum VaultStrategyType {
+  CONSERVATIVE_KES_STABLE
+  BALANCED_YBOB_VAULT
+  HIGH_YIELD_ETH_POOL
+}
+
+model ChamaMember {
+  id               String             @id @default(cuid())
+  chamaId          String
+  memberName       String
+  phoneNumber      String
+  role             ChamaRole          @default(MEMBER)
+  totalContributed Float              @default(0)
+  sharePercentage  Float              @default(0)
+  joinedAt         DateTime           @default(now())
+
+  chama            ChamaGroup         @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  contributions    ChamaContribution[]
+
+  @@index([chamaId])
+  @@map("chama_members")
+}
+
+enum ChamaRole {
+  CHAIRPERSON
+  TREASURER
+  SECRETARY
+  MEMBER
+}
+
+model ChamaContribution {
+  id         String        @id @default(cuid())
+  chamaId    String
+  memberId   String
+  amountKes  Float
+  paymentRef String
+  status     PaymentStatus @default(SUCCESS)
+  timestamp  DateTime      @default(now())
+
+  chama      ChamaGroup    @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+  member     ChamaMember   @relation(fields: [memberId], references: [id])
+
+  @@index([chamaId])
+  @@map("chama_contributions")
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model ChamaYieldLog {
+  id              String            @id @default(cuid())
+  chamaId         String
+  amountInvested  Float
+  yieldEarnedKes  Float
+  strategyUsed    VaultStrategyType
+  txHash          String?
+  generatedAt     DateTime          @default(now())
+
+  chama           ChamaGroup        @relation(fields: [chamaId], references: [id], onDelete: Cascade)
+
+  @@index([chamaId])
+  @@map("chama_yield_logs")
+}

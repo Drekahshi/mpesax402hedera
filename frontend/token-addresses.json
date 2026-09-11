@@ -1,0 +1,17 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deployedAt": "2026-08-23T12:03:23.968Z",
+  "deployer": "0xaA9953BAB5de2147cC0c919Ab2ff22d809188514",
+  "initialSupply": "100000",
+  "decimals": 18,
+  "tokens": {
+    "NVR": "0x6489Ea8302b00A8eEd4D82a78A5f9e71Fe2DaC62",
+    "yBOB": "0xE4f6A3506616f7c8e445B20a5D93521bFeE97979",
+    "YTOKEN": "0xF550ACf387011BC0172F2a14656AcE65846b7fBC",
+    "YGOLD": "0xEbA875e6cb6d19d8d31b3D29a2b2cE7457D5808A",
+    "GAMI": "0x199fC58F7Ce929f1dBDA89b9EB2391582a321e7d",
+    "CENTS": "0x1bd79052747A236Aca137380394da27771e95eeA"
+  },
+  "explorerBase": "https://sepolia.etherscan.io"
+}

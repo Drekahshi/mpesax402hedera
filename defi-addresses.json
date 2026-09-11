@@ -1,0 +1,78 @@
+{
+  "network": "Sepolia / Hedera Testnet",
+  "chainId": 11155111,
+  "deployedAt": "2026-08-30T01:22:53.948Z",
+  "deployer": "0xaA9953BAB5de2147cC0c919Ab2ff22d809188514",
+  "explorerBase": "https://sepolia.etherscan.io",
+  "amm": {
+    "address": "0x1A201396Aa620C12bf54A394a3449d21E6837861",
+    "explorer": "https://sepolia.etherscan.io/address/0x1A201396Aa620C12bf54A394a3449d21E6837861"
+  },
+  "vaults": {
+    "NVR": {
+      "address": "0xCB6198228E27f2200C9093024fB31527E0a3B7c0",
+      "apyBps": 1520,
+      "apyPct": "15.2%",
+      "asset": "0x6489Ea8302b00A8eEd4D82a78A5f9e71Fe2DaC62",
+      "explorer": "https://sepolia.etherscan.io/address/0xCB6198228E27f2200C9093024fB31527E0a3B7c0"
+    },
+    "yBOB": {
+      "address": "0x431A98d42f9F7d6529C676115D5E3Df3c2419DA2",
+      "apyBps": 750,
+      "apyPct": "7.5%",
+      "asset": "0xE4f6A3506616f7c8e445B20a5D93521bFeE97979",
+      "explorer": "https://sepolia.etherscan.io/address/0x431A98d42f9F7d6529C676115D5E3Df3c2419DA2"
+    },
+    "YTOKEN": {
+      "address": "0x88e2d3049719C7C48AB3393FCe7DB24A81FEBcA2",
+      "apyBps": 1480,
+      "apyPct": "14.8%",
+      "asset": "0xF550ACf387011BC0172F2a14656AcE65846b7fBC",
+      "explorer": "https://sepolia.etherscan.io/address/0x88e2d3049719C7C48AB3393FCe7DB24A81FEBcA2"
+    },
+    "YGOLD": {
+      "address": "0xdd3EEC62335E50fD8b83b8D1cE961ADb7bD01B5F",
+      "apyBps": 1240,
+      "apyPct": "12.4%",
+      "asset": "0xEbA875e6cb6d19d8d31b3D29a2b2cE7457D5808A",
+      "explorer": "https://sepolia.etherscan.io/address/0xdd3EEC62335E50fD8b83b8D1cE961ADb7bD01B5F"
+    },
+    "GAMI": {
+      "address": "0x9cDFf66853Db502DCDE9330dD1139fBE61d42a43",
+      "apyBps": 2200,
+      "apyPct": "22.0%",
+      "asset": "0x199fC58F7Ce929f1dBDA89b9EB2391582a321e7d",
+      "explorer": "https://sepolia.etherscan.io/address/0x9cDFf66853Db502DCDE9330dD1139fBE61d42a43"
+    },
+    "CENTS": {
+      "address": "0x96f69cBAAFb94DCEb3Bf4D120af594bCF2eE90BD",
+      "apyBps": 650,
+      "apyPct": "6.5%",
+      "asset": "0x1bd79052747A236Aca137380394da27771e95eeA",
+      "explorer": "https://sepolia.etherscan.io/address/0x96f69cBAAFb94DCEb3Bf4D120af594bCF2eE90BD"
+    }
+  },
+  "pools": [
+    {
+      "pair": "NVR/yBOB",
+      "address": "0x362AE5Da53e3ff57E7FF9c12775ABBf94ec38C47",
+      "tokenA": "0x6489Ea8302b00A8eEd4D82a78A5f9e71Fe2DaC62",
+      "tokenB": "0xE4f6A3506616f7c8e445B20a5D93521bFeE97979",
+      "explorer": "https://sepolia.etherscan.io/address/0x362AE5Da53e3ff57E7FF9c12775ABBf94ec38C47"
+    },
+    {
+      "pair": "YTOKEN/YGOLD",
+      "address": "0x62B367533301f2eF4484aEFF98cBF7FdBFD3ADf3",
+      "tokenA": "0xF550ACf387011BC0172F2a14656AcE65846b7fBC",
+      "tokenB": "0xEbA875e6cb6d19d8d31b3D29a2b2cE7457D5808A",
+      "explorer": "https://sepolia.etherscan.io/address/0x62B367533301f2eF4484aEFF98cBF7FdBFD3ADf3"
+    },
+    {
+      "pair": "GAMI/CENTS",
+      "address": "0xa9a93c9bAeF66B5407138C06E68211cE63bd96e0",
+      "tokenA": "0x199fC58F7Ce929f1dBDA89b9EB2391582a321e7d",
+      "tokenB": "0x1bd79052747A236Aca137380394da27771e95eeA",
+      "explorer": "https://sepolia.etherscan.io/address/0xa9a93c9bAeF66B5407138C06E68211cE63bd96e0"
+    }
+  ]
+}

@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Explore KAI Nuvari's product ecosystem — ETH, BTC.b, USDK, KAIX, KARB, and KGRN — powering programmable finance on Ethereum & Hedera.">
+<title>KAI Nuvari — Ecosystem &amp; Products</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header>
+    <div class="container nav-container">
+        <div class="brand">
+            <div class="brand-logo">K</div>
+            <div class="brand-title">KAI</div>
+        </div>
+        <button class="mobile-nav-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" onclick="toggleMobileNav(this)">☰</button>
+                <ul class="nav-links">
+            <li><a href="problems.html">Problem</a></li>
+            <li><a href="solution.html">Solution</a></li>
+            <li class="dropdown">
+                <a href="products.html" class="active">Kai Products ▾</a>
+                <div class="dropdown-content">
+                    <a href="insurance.html">Insurance</a>
+                    <a href="pension.html">Pension</a>
+                    <a href="trust.html">Trust</a>
+                    <a href="tokens.html">Tokens</a>
+                    <a href="ecosystem.html">Ecosystem</a>
+                </div>
+            </li>
+            <li><a href="DAO.html">DAO</a></li>
+            <li><a href="bizcanvas.html">Business Canvas</a></li>
+        </ul>
+        <a href="https://kainuv-app-9v3m.vercel.app/" class="cta-btn" rel="noopener noreferrer">Launch App</a>
+    </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <p class="eyebrow">Bankai Labs — Autonomous Payments as a Service</p>
+    <h1>A financial operating system that runs on <em>outcomes</em>, not instructions.</h1>
+    <p class="lede">Nuvari lets people, businesses, communities, and AI agents save, invest, protect, and automate financial obligations across Ethereum & Hedera, M-Pesa, banks, and x402-enabled APIs — through one intelligence layer that turns a stated goal into a settled payment.</p>
+
+    <div class="strata reveal" id="architecture">
+      <div class="strata-frame">
+        <svg viewBox="0 0 1040 640" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Four-tier architecture: users at the top, the Nuvari financial intelligence layer below them, three parallel systems — token ecosystem, financial services, payment infrastructure — beneath that, and the settlement rails Ethereum & Hedera, M-Pesa, and x402 at the base.">
+          <defs>
+            <linearGradient id="bandA" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#20493A"/><stop offset="1" stop-color="#183327"/></linearGradient>
+            <linearGradient id="bandB" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#183327"/><stop offset="1" stop-color="#14261E"/></linearGradient>
+            <linearGradient id="bandC" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14261E"/><stop offset="1" stop-color="#10201A"/></linearGradient>
+            <linearGradient id="bandD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A1F16"/><stop offset="1" stop-color="#1C140D"/></linearGradient>
+          </defs>
+
+          <!-- BAND 1: USERS -->
+          <rect x="0" y="0" width="1040" height="120" fill="url(#bandA)"/>
+          <text x="40" y="34" class="mono" font-family="IBM Plex Mono" font-size="11" letter-spacing="1.5" fill="#E4C574">USERS</text>
+          <text x="40" y="72" font-family="Fraunces" font-size="24" fill="#F5F1E6">Individuals · SMEs · Chamas · CFAs · CBOs · AI Agents</text>
+          <g fill="#E4C574" opacity="0.7"><circle cx="920" cy="30" r="3"/><circle cx="950" cy="45" r="2.2"/><circle cx="980" cy="25" r="2.6"/></g>
+
+          <g stroke="#3A4F42" stroke-width="1.4"><path d="M520 120 L520 155"/></g>
+
+          <!-- BAND 2: INTELLIGENCE LAYER -->
+          <rect x="0" y="155" width="1040" height="110" fill="url(#bandB)"/>
+          <text x="40" y="189" class="mono" font-family="IBM Plex Mono" font-size="11" letter-spacing="1.5" fill="#E4C574">NUVARI FINANCIAL INTELLIGENCE LAYER</text>
+          <text x="40" y="222" font-family="IBM Plex Sans" font-size="14" fill="#C9C3B4">Rules Engine · AI · Escrow · Automation · Yield Engine</text>
+          <rect x="40" y="236" width="960" height="1" fill="#3A4F42"/>
+
+          <g stroke="#3A4F42" stroke-width="1.4">
+            <path d="M175 265 L175 300"/>
+            <path d="M520 265 L520 300"/>
+            <path d="M865 265 L865 300"/>
+          </g>
+
+          <!-- BAND 3: THREE SYSTEMS -->
+          <rect x="0" y="300" width="1040" height="185" fill="url(#bandC)"/>
+          <text x="40" y="334" class="mono" font-family="IBM Plex Mono" font-size="11" letter-spacing="1.5" fill="#E4C574">TOKEN ECOSYSTEM · FINANCIAL SERVICES · PAYMENT INFRASTRUCTURE</text>
+
+          <g font-family="IBM Plex Sans">
+            <rect x="40" y="360" width="290" height="100" rx="4" fill="#16302680" stroke="#3A4F42"/>
+            <text x="58" y="386" font-family="Fraunces" font-size="16" fill="#F5F1E6">Token Ecosystem</text>
+            <text x="58" y="408" font-family="IBM Plex Mono" font-size="12" fill="#C99B3E">NVR · NUVARI STABLE</text>
+            <text x="58" y="426" font-family="IBM Plex Mono" font-size="12" fill="#9FB8A0">YToken · YGold · GAMI · CENTS</text>
+
+            <rect x="375" y="360" width="290" height="100" rx="4" fill="#16302680" stroke="#3A4F42"/>
+            <text x="393" y="386" font-family="Fraunces" font-size="16" fill="#F5F1E6">Financial Services</text>
+            <text x="393" y="408" font-family="IBM Plex Mono" font-size="12" fill="#C99B3E">Vaults · Insurance · Pension</text>
+            <text x="393" y="426" font-family="IBM Plex Mono" font-size="12" fill="#9FB8A0">Trust · Treasury · TaaS</text>
+
+            <rect x="710" y="360" width="290" height="100" rx="4" fill="#16302680" stroke="#3A4F42"/>
+            <text x="728" y="386" font-family="Fraunces" font-size="16" fill="#F5F1E6">Payment Infrastructure</text>
+            <text x="728" y="408" font-family="IBM Plex Mono" font-size="12" fill="#C99B3E">APaaS · M-Pesa Gateway</text>
+            <text x="728" y="426" font-family="IBM Plex Mono" font-size="12" fill="#9FB8A0">x402 Settlement</text>
+          </g>
+
+          <g stroke="#3A4F42" stroke-width="1.4">
+            <path d="M185 485 L185 520"/><path d="M520 485 L520 520"/><path d="M855 485 L855 520"/>
+            <path d="M185 520 C185 545, 520 545, 520 520"/>
+            <path d="M855 520 C855 545, 520 545, 520 520"/>
+          </g>
+
+          <!-- BAND 4: RAILS -->
+          <rect x="0" y="545" width="1040" height="95" fill="url(#bandD)"/>
+          <text x="40" y="575" class="mono" font-family="IBM Plex Mono" font-size="11" letter-spacing="1.5" fill="#E4C574">SETTLEMENT RAILS</text>
+          <g font-family="IBM Plex Mono" font-size="15" fill="#F5F1E6">
+            <text x="40" y="608">Ethereum & Hedera</text>
+            <text x="150" y="608" fill="#6B5138">·</text>
+            <text x="175" y="608">Ethereum & Hedera</text>
+            <text x="310" y="608" fill="#6B5138">·</text>
+            <text x="335" y="608">M-Pesa</text>
+            <text x="450" y="608" fill="#6B5138">·</text>
+            <text x="475" y="608">Banks</text>
+            <text x="580" y="608" fill="#6B5138">·</text>
+            <text x="605" y="608">x402</text>
+          </g>
+          <g fill="#4A3728" stroke="#6B5138"><circle cx="70" cy="622" r="3"/><circle cx="220" cy="622" r="3"/><circle cx="365" cy="622" r="3"/><circle cx="500" cy="622" r="3"/><circle cx="625" cy="622" r="3"/></g>
+        </svg>
+      </div>
+      <div class="strata-caption">
+        <span>fig. 1 — users → intelligence layer → three systems → settlement rails</span>
+        <span>Ethereum & Hedera · M-Pesa · x402</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="tokens">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">01 · Ecosystem Tokens</p>
+      <h2>Six tokens, each with one job</h2>
+      <p>Governance, settlement, investment, and utility are kept deliberately separate — so growth in one never destabilises another.</p>
+    </div>
+
+    <div class="token-grid reveal">
+      <div class="token">
+        <span class="tk">$NVR</span>
+        <h3>Governance</h3>
+        <div class="meta"><div><span>Supply</span>50M hard cap</div><div><span>Network</span>Ethereum & Hedera</div></div>
+        <p>Powers protocol governance, cross-chain voting, staking incentives, revenue sharing, and treasury decisions.</p>
+        <span class="tag">Governance</span>
+      </div>
+      <div class="token">
+        <span class="tk">NUVARI STABLE</span>
+        <h3>Settlement Asset</h3>
+        <div class="meta"><div><span>Supply</span>Elastic</div><div><span>Backing</span>150% USDC</div></div>
+        <p>Fully over-collateralized, not algorithmic. Used for insurance settlements, treasury operations, and risk hedging.</p>
+        <span class="tag">Stable</span>
+      </div>
+      <div class="token">
+        <span class="tk">YToken ETF</span>
+        <h3>Flagship Investment</h3>
+        <div class="meta"><div><span>Supply</span>2.1B</div><div><span>Basket</span>BTC.b · ETH · DeFi · Bonds</div></div>
+        <p>Diversified multi-asset ETF for long-term investing, passive yield, and financing insurance premiums.</p>
+        <span class="tag">Investment</span>
+      </div>
+      <div class="token">
+        <span class="tk">YGold ETF</span>
+        <h3>Commodity Reserve</h3>
+        <div class="meta"><div><span>Supply</span>4.2B</div><div><span>Basis</span>Gold-backed</div></div>
+        <p>Preserves purchasing power as a long-term wealth-preservation and treasury reserve asset.</p>
+        <span class="tag">Reserve</span>
+      </div>
+      <div class="token">
+        <span class="tk">$GAMI</span>
+        <h3>Community Token</h3>
+        <div class="meta"><div><span>Supply</span>8.4B</div></div>
+        <p>Rewards participation — referrals, governance engagement, and ecosystem campaigns.</p>
+        <span class="tag">Community</span>
+      </div>
+      <div class="token">
+        <span class="tk">NUVARI CENTS</span>
+        <h3>Micro-Utility</h3>
+        <div class="meta"><div><span>Supply</span>Elastic</div></div>
+        <p>Gas abstraction, prediction-market entries, micropayments, and restaking rewards for everyday, low-value use.</p>
+        <span class="tag">Utility</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="products">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">02 · Financial Products</p>
+      <h2>Eight products, one financial life</h2>
+      <p>Each product is a promise kept automatically — the intelligence layer tracks the rule, generates the yield, and settles the obligation without asking the user to remember it.</p>
+      <p class="mt-4"><a href="tokens.html" class="cta-btn">View token architecture</a></p>
+    </div>
+
+    <div class="product-list reveal">
+      <div class="product">
+        <div class="idx mono">01</div>
+        <div>
+          <span class="role">Save &amp; Grow</span>
+          <h3>Investment Vaults</h3>
+          <p>Deposit BTC.b, ETH, YToken, or YGold into professionally managed, non-custodial vaults that automatically route capital into staking, DeFi, liquidity provision, or Kenyan infrastructure bonds.</p>
+          <ul class="pillars"><li>Passive income</li><li>Inflation protection</li><li>Automated management</li></ul>
+        </div>
+      </div>
+      <div class="product">
+        <div class="idx mono">02</div>
+        <div>
+          <span class="role">Protect</span>
+          <h3>Yield-as-Insurance</h3>
+          <p>Instead of paying premiums out of income, capital sits in a yield-generating vault — the yield alone funds the premium while principal stays invested. Coverage unlocks progressively as yield accrues.</p>
+          <ul class="pillars"><li>Premium automation</li><li>Principal stays invested</li><li>Provider-agnostic</li></ul>
+        </div>
+      </div>
+      <div class="product">
+        <div class="idx mono">03</div>
+        <div>
+          <span class="role">Estate &amp; Governance</span>
+          <h3>Programmable Trust</h3>
+          <p>Smart-contract trusts replace manual trust administration for family inheritance, chamas, SACCOs, CFA treasuries, and community projects — with multi-signature rules and transparent, automatic fund release.</p>
+          <ul class="pillars"><li>Multi-sig governance</li><li>Automated release</li><li>Transparent auditing</li></ul>
+        </div>
+      </div>
+      <div class="product">
+        <div class="idx mono">04</div>
+        <div>
+          <span class="role">Long Horizon</span>
+          <h3>Smart Pension</h3>
+          <p>A decentralized retirement platform built for informal workers, SMEs, and the self-employed — flexible deposits, compounding yield, lock conditions, and automated payouts at retirement.</p>
+          <ul class="pillars"><li>Flexible deposits</li><li>Yield compounding</li><li>Automated payouts</li></ul>
+        </div>
+      </div>
+      <div class="product">
+        <div class="idx mono">05</div>
+        <div>
+          <span class="role">Working Capital</span>
+          <h3>SME Digital Treasury</h3>
+          <p>Treasury infrastructure that keeps reserves in deflationary assets, earns yield on idle capital, and gives businesses on-chain accounting and liquidity without ever selling core holdings.</p>
+          <ul class="pillars"><li>On-chain accounting</li><li>Treasury automation</li><li>Liquidity without selling</li></ul>
+        </div>
+      </div>
+      <div class="product">
+        <div class="idx mono">06</div>
+        <div>
+          <span class="role">Real-World Assets</span>
+          <h3>Tokenization-as-a-Service</h3>
+          <p>Turns land, standing trees, carbon credits, cooperative assets, and infrastructure projects into fractional, tradeable, on-chain instruments usable as loan collateral.</p>
+          <ul class="pillars"><li>Fractional ownership</li><li>Secondary markets</li><li>Collateral for lending</li></ul>
+        </div>
+      </div>
+      <div class="product">
+        <div class="idx mono">07</div>
+        <div>
+          <span class="role">Transact</span>
+          <h3>P2P Payments with Escrow</h3>
+          <p>Peer-to-peer transfers with programmable escrow — conditional payments, buyer and seller protection, and automated cross-chain settlement.</p>
+          <ul class="pillars"><li>Conditional release</li><li>Buyer/seller protection</li><li>Cross-chain</li></ul>
+        </div>
+      </div>
+      <div class="product">
+        <div class="idx mono">08</div>
+        <div>
+          <span class="role">Forecast &amp; Signal</span>
+          <h3>Prediction Markets</h3>
+          <p>Powered by NUVARI CENTS, communities create and participate in event-based markets spanning agriculture, weather, commodity prices, elections, and local outcomes.</p>
+          <ul class="pillars"><li>Community-created</li><li>Real-world signal</li><li>CENTS-denominated</li></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="infra">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">03 · Payment Infrastructure</p>
+      <h2>How value actually moves</h2>
+      <p>Three pieces of rail connect a stated financial goal to real settlement, whether the counterparty lives on-chain, in a bank, or on M-Pesa.</p>
+    </div>
+
+    <div class="rail-grid reveal">
+      <div class="rail">
+        <span class="tk">APaaS</span>
+        <h3>Autonomous Payments as a Service</h3>
+        <p>Users define outcomes, not instructions — "pay my insurance premium," "save 10% of every payment received," "settle my AI agent's bills." The protocol executes the rule automatically.</p>
+        <div class="flow">User-defined rule<br>↓<br>Automation engine<br>↓<br>Settled obligation</div>
+      </div>
+      <div class="rail">
+        <span class="tk">Bi-Directional Gateway</span>
+        <h3>M-Pesa ⇄ Nuvari</h3>
+        <p>On-ramp: M-Pesa funds convert into ETH, NUVARI STABLE, or ETFs for savings and investment. Off-ramp: investment returns and pension payouts convert back to KES on M-Pesa.</p>
+        <div class="flow">M-Pesa → Gateway → On-chain assets<br>Returns → Gateway → KES → M-Pesa</div>
+      </div>
+      <div class="rail">
+        <span class="tk">x402</span>
+        <h3>Machine-to-Machine Settlement</h3>
+        <p>Programmable settlement between Nuvari and external services — insurers, AI agents, merchant APIs, data providers. x402-enabled counterparties settle directly; others route through Nuvari's gateway to M-Pesa or bank rails, with a full on-chain audit trail either way.</p>
+        <div class="flow">Yield generated → x402 settlement → API / Gateway → M-Pesa or Bank</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="highlights">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Architecture Highlights</p>
+      <h2>Why it's built this way</h2>
+    </div>
+    <div class="highlights reveal">
+      <div class="hl">
+        <div class="num mono">A</div>
+        <h4>Insurance funded by yield, not income</h4>
+        <p>Yield-as-Insurance turns a recurring expense into a byproduct of capital already working — coverage grows as yield accrues instead of competing with monthly cash flow.</p>
+      </div>
+      <div class="hl">
+        <div class="num mono">B</div>
+        <h4>A stablecoin that's actually stable</h4>
+        <p>NUVARI STABLE is 150% over-collateralized in USDC, not algorithmic — the ecosystem's settlement layer doesn't inherit the fragility that sank earlier stablecoin designs.</p>
+      </div>
+      <div class="hl">
+        <div class="num mono">C</div>
+        <h4>Settlement that degrades gracefully</h4>
+        <p>x402-enabled counterparties settle directly on-chain; everyone else still gets paid through the M-Pesa or bank gateway — the audit trail never breaks, even off-chain.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="summary">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow">Ecosystem Summary</p>
+      <h2>Every layer, at a glance</h2>
+    </div>
+    <div class="reveal" style="overflow-x:auto;">
+      <table class="summary">
+        <thead><tr><th>Layer</th><th>Products</th></tr></thead>
+        <tbody>
+          <tr><td>Governance</td><td>NVR</td></tr>
+          <tr><td>Stable Asset</td><td>NUVARI STABLE</td></tr>
+          <tr><td>Investment Assets</td><td>YToken ETF, YGold ETF</td></tr>
+          <tr><td>Utility</td><td>NUVARI CENTS, GAMI</td></tr>
+          <tr><td>Savings</td><td>Investment Vaults</td></tr>
+          <tr><td>Insurance</td><td>Yield-as-Insurance</td></tr>
+          <tr><td>Retirement</td><td>Smart Pension</td></tr>
+          <tr><td>Trust</td><td>Programmable Trust</td></tr>
+          <tr><td>Business</td><td>SME Digital Treasury</td></tr>
+          <tr><td>Tokenization</td><td>Tokenization-as-a-Service</td></tr>
+          <tr><td>Payments</td><td>P2P Escrow, Autonomous Payments, Prediction Markets</td></tr>
+          <tr><td>Infrastructure</td><td>M-Pesa Gateway, x402 Settlement Layer</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<footer>
+    <div class="container">
+        <div class="footer-grid">
+            <div class="footer-col">
+                <h5>KAI Protocol</h5>
+                <p>DeFi Banking Infrastructure on Ethereum & Hedera.</p>
+            </div>
+            <div class="footer-col">
+                <h5>Ecosystem</h5>
+                <ul>
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="solution.html">Solution</a></li>
+                    <li><a href="products.html">Products</a></li>
+                    <li><a href="insurance.html">Insurance</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h5>Company</h5>
+                <ul>
+                    <li><a href="problems.html">Problems We Solve</a></li>
+                    <li><a href="pension.html">Pension</a></li>
+                    <li><a href="trust.html">Trust</a></li>
+                    <li><a href="https://kainuv-app-9v3m.vercel.app/">Launch App</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 KAI Protocol. Built on Ethereum & Hedera Ecosystem. Powered by ETH. All rights reserved.</p>
+        </div>
+    </div>
+</footer>
+
+<script>
+  const els = document.querySelectorAll('.reveal');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.1 });
+  els.forEach(el => io.observe(el));
+</script>
+
+</body>
+<script>
+function toggleMobileNav(button) {
+    const nav = document.querySelector('.nav-links');
+    if (!nav) return;
+    const isOpen = nav.classList.toggle('active');
+    button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const nav = document.querySelector('.nav-links');
+    const toggle = document.querySelector('.mobile-nav-toggle');
+    if (!nav || !toggle) return;
+
+    nav.querySelectorAll('a').forEach(function (link) {
+        link.addEventListener('click', function () {
+            nav.classList.remove('active');
+            toggle.setAttribute('aria-expanded', 'false');
+        });
+    });
+
+    document.addEventListener('click', function (event) {
+        if (window.innerWidth > 768) return;
+        if (!nav.contains(event.target) && !toggle.contains(event.target)) {
+            nav.classList.remove('active');
+            toggle.setAttribute('aria-expanded', 'false');
+        }
+    });
+});
+</script>
+</html>
