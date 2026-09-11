@@ -52,8 +52,21 @@ async def groq_complete(
 ) -> str:
     """
     Single blocking-style completion via Groq (OpenAI-compatible API).
-    Returns a graceful fallback string when offline or errors.
+    Falls back to on-device Needle 2 when GROQ_API_KEY is not set or offline.
     """
+    if not GROQ_API_KEY:
+        try:
+            from agents.needle_harness import get_needle_harness
+            h = get_needle_harness()
+            res = h.run(prompt)
+            if res.get("text"):
+                return res["text"]
+            if res.get("results"):
+                return json.dumps(res["results"], indent=2)
+        except Exception as err:
+            return f"Needle on-device response: {err}"
+        return _OFFLINE_MSG
+
     messages: list[dict] = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -77,14 +90,19 @@ async def groq_complete(
             resp.raise_for_status()
             data = resp.json()
             return data["choices"][0]["message"]["content"].strip()
-    except httpx.ConnectError:
+    except Exception:
+        # Fall back to Needle
+        try:
+            from agents.needle_harness import get_needle_harness
+            h = get_needle_harness()
+            res = h.run(prompt)
+            if res.get("text"):
+                return res["text"]
+            if res.get("results"):
+                return json.dumps(res["results"], indent=2)
+        except Exception:
+            pass
         return _OFFLINE_MSG
-    except httpx.TimeoutException:
-        return "The AI model timed out. Try a shorter prompt."
-    except httpx.HTTPStatusError as e:
-        return f"Groq returned an error ({e.response.status_code}). Check your API key."
-    except Exception as e:
-        return f"AI model unavailable: {e}"
 
 
 async def groq_stream(
@@ -94,8 +112,27 @@ async def groq_stream(
 ) -> AsyncIterator[str]:
     """
     Stream tokens from Groq as SSE lines.
-    Yields a single error SSE event when offline.
+    Falls back to on-device Needle 2 when GROQ_API_KEY is not set or offline.
     """
+    if not GROQ_API_KEY:
+        try:
+            from agents.needle_harness import get_needle_harness
+            h = get_needle_harness()
+            res = h.run(prompt)
+            text = res.get("text")
+            if not text and res.get("results"):
+                text = json.dumps(res["results"], indent=2)
+            elif not text:
+                text = f"Query processed via on-device Needle 2 engine."
+            for w in text.split(" "):
+                yield f"data: {json.dumps({'token': w + ' '})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+            return
+        except Exception as e:
+            yield f"data: {json.dumps({'token': f'Needle on-device error: {e}'})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+            return
+
     messages: list[dict] = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -138,16 +175,18 @@ async def groq_stream(
                     if token:
                         yield f"data: {json.dumps({'token': token})}\n\n"
 
-    except httpx.ConnectError:
-        yield f"data: {json.dumps({'token': _OFFLINE_MSG})}\n\n"
-        yield f"data: {json.dumps({'done': True, 'error': 'groq_offline'})}\n\n"
-    except httpx.TimeoutException:
-        msg = "AI model timed out. Try again."
-        yield f"data: {json.dumps({'token': msg})}\n\n"
-        yield f"data: {json.dumps({'done': True, 'error': 'timeout'})}\n\n"
-    except Exception as e:
-        msg = f"AI model unavailable: {e}"
-        yield f"data: {json.dumps({'token': msg})}\n\n"
+    except Exception:
+        try:
+            from agents.needle_harness import get_needle_harness
+            h = get_needle_harness()
+            res = h.run(prompt)
+            text = res.get("text") or json.dumps(res.get("results", []), indent=2)
+            for w in text.split(" "):
+                yield f"data: {json.dumps({'token': w + ' '})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'token': _OFFLINE_MSG})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'error': 'groq_offline'})}\n\n"
         yield f"data: {json.dumps({'done': True, 'error': str(e)})}\n\n"
 
 

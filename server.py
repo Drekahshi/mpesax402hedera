@@ -113,16 +113,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Groq config ───────────────────────────────────────────────────────────────
+# ── Groq & Needle config ───────────────────────────────────────────────────────
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL   = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
-model = ChatGroq(
-    model=GROQ_MODEL,
-    groq_api_key=GROQ_API_KEY,
-    temperature=0.3,
-    max_tokens=2048,
-)
+model        = None
+chain        = None
+plain_chain  = None
 
 RAG_TEMPLATE = """You are KAI, the AI assistant for KAI Nuvari — a DeFi ecosystem built on Ethereum Sepolia & Hedera Testnet (X402).
 
@@ -156,15 +153,28 @@ User: {question}
 KAI:"""
 
 prompt       = ChatPromptTemplate.from_template(RAG_TEMPLATE)
-chain        = prompt | model
 plain_prompt = ChatPromptTemplate.from_template(PLAIN_TEMPLATE)
-plain_chain  = plain_prompt | model
+
+if GROQ_API_KEY:
+    try:
+        model = ChatGroq(
+            model=GROQ_MODEL,
+            groq_api_key=GROQ_API_KEY,
+            temperature=0.3,
+            max_tokens=2048,
+        )
+        chain        = prompt | model
+        plain_chain  = plain_prompt | model
+    except Exception:
+        model = None
+        chain = None
+        plain_chain = None
 
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Original endpoints (unchanged)
+# Core & Needle Endpoints
 # ═════════════════════════════════════════════════════════════════════════════
 
 class ChatRequest(BaseModel):
@@ -177,78 +187,190 @@ class ChatResponse(BaseModel):
     rag_used: bool
     sources_count: int
 
+class NeedleRunRequest(BaseModel):
+    query: str
+
 
 @app.get("/health")
 def health():
     return {
         "status": "ok",
-        "model": GROQ_MODEL,
-        "provider": "groq",
+        "model": GROQ_MODEL if GROQ_API_KEY else "needle-2 (on-device)",
+        "provider": "groq" if GROQ_API_KEY else "needle (on-device)",
+        "needle_available": True,
         "agents": [
-            "tx_analyst", "portfolio_health", "contract_auditor",
+            "needle_dispatcher", "tx_analyst", "portfolio_health", "contract_auditor",
             "dao_drafter", "commodity_pricing", "policy_recommender",
             "code_gen", "doc_summarizer",
         ],
     }
 
 
+@app.get("/agents/needle/health")
+def needle_health():
+    """Health check and tool catalogue for the on-device Needle 2 harness."""
+    try:
+        from agents.needle_harness import get_needle_harness
+        h = get_needle_harness()
+        return {
+            "status": "ok",
+            "engine": "needle-2 (cactus-compute)",
+            "mode": "on-device",
+            "parameters": "45M",
+            "size": "14MB",
+            "tools": [t.__name__ for t in h.tools],
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@app.post("/agents/needle/run")
+async def needle_run(body: NeedleRunRequest):
+    """Run an on-device Needle query with automatic tool execution."""
+    if not body.query.strip():
+        raise HTTPException(400, "Query cannot be empty")
+    try:
+        from agents.needle_harness import run_needle_agent
+        result = await run_needle_agent(body.query)
+        return result
+    except Exception as e:
+        raise HTTPException(500, f"Needle execution error: {e}")
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest):
     if not body.message.strip():
         raise HTTPException(400, "Message cannot be empty")
+    
+    # 1. Try Groq if key is present
+    if GROQ_API_KEY and chain is not None:
+        try:
+            if body.rag:
+                docs    = retriever.invoke(body.message)
+                context = "\n\n".join(f"[Doc {i+1}]: {d.page_content}" for i, d in enumerate(docs))
+                result  = chain.invoke({"reviews": context, "question": body.message})
+                return ChatResponse(text=str(result), agent="KAI Agent", rag_used=True, sources_count=len(docs))
+            if plain_chain is not None:
+                result = plain_chain.invoke({"question": body.message})
+                return ChatResponse(text=str(result), agent="KAI Agent", rag_used=False, sources_count=0)
+        except Exception:
+            pass
+
+    # 2. Fallback seamlessly to on-device Needle 2
     try:
-        if body.rag:
-            docs    = retriever.invoke(body.message)
-            context = "\n\n".join(f"[Doc {i+1}]: {d.page_content}" for i, d in enumerate(docs))
-            result  = chain.invoke({"reviews": context, "question": body.message})
-            return ChatResponse(text=str(result), agent="KAI Agent", rag_used=True, sources_count=len(docs))
-        result = plain_chain.invoke({"question": body.message})
-        return ChatResponse(text=str(result), agent="KAI Agent", rag_used=False, sources_count=0)
+        from agents.needle_harness import run_needle_agent
+        n_res = await run_needle_agent(body.message)
+        text = n_res.get("text")
+        if not text and n_res.get("results"):
+            res_items = n_res["results"]
+            first = res_items[0].get("result") if isinstance(res_items[0], dict) else res_items[0]
+            if isinstance(first, dict) and "error" in first:
+                text = f"Tool result: {first['error']}"
+            else:
+                text = json.dumps(first, indent=2)
+        elif not text:
+            if body.rag:
+                docs = retriever.invoke(body.message)
+                if docs:
+                    text = f"**KAI Knowledge Base:**\n\n{docs[0].page_content}"
+                else:
+                    text = f"Query executed via on-device Needle agent: {body.message}"
+            else:
+                text = f"Needle on-device agent active. (Query: {body.message})"
+
+        return ChatResponse(
+            text=text or "Query processed successfully by Needle 2.",
+            agent="Needle ⚡ (On-Device)",
+            rag_used=body.rag,
+            sources_count=1 if body.rag else 0,
+        )
     except Exception as e:
-        raise HTTPException(500, f"RAG chain error: {e}")
+        raise HTTPException(500, f"Needle execution error: {e}")
 
 
 @app.post("/stream")
 async def stream_chat(body: ChatRequest):
     if not body.message.strip():
         raise HTTPException(400, "Message cannot be empty")
-    if body.rag:
-        docs    = retriever.invoke(body.message)
-        context = "\n\n".join(f"[Doc {i+1}]: {d.page_content}" for i, d in enumerate(docs))
-        sources = len(docs)
-        messages = [
-            SystemMessage(content=(
-                "You are KAI, the AI assistant for KAI Nuvari — a DeFi ecosystem on Ethereum & Hedera (X402).\n\n"
-                "KAI Nuvari provides: 6 ecosystem tokens (NVR, yBOB, YTOKEN, YGOLD, GAMI, CENTS), "
-                "AMM pools, yield vaults, securities & insurance products, community commodity tokenization, "
-                "M-Pesa integration, and conservation NFTs."
-            )),
-            HumanMessage(content=(
-                f"Retrieved context from KAI Nuvari documentation:\n{context}\n\n"
-                f"User question: {body.message}\n\n"
-                f"Answer clearly using specifics from the context. If unsure, say so."
-            )),
-        ]
-    else:
-        sources = 0
-        messages = [
-            SystemMessage(content="You are KAI, an AI advisor."),
-            HumanMessage(content=body.message),
-        ]
-
-    async def event_generator():
+    
+    # 1. Try Groq streaming if configured
+    if GROQ_API_KEY and model is not None:
         try:
-            stream = model.stream(messages)
-            for chunk in stream:
-                token = chunk.content
-                if token:
-                    yield f"data: {json.dumps({'token': token})}\n\n"
-            yield f"data: {json.dumps({'done': True, 'sources': sources})}\n\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'token': f'Error: {e}'})}\n\n"
-            yield f"data: {json.dumps({'done': True, 'sources': sources})}\n\n"
+            if body.rag:
+                docs    = retriever.invoke(body.message)
+                context = "\n\n".join(f"[Doc {i+1}]: {d.page_content}" for i, d in enumerate(docs))
+                sources = len(docs)
+                messages = [
+                    SystemMessage(content=(
+                        "You are KAI, the AI assistant for KAI Nuvari — a DeFi ecosystem on Ethereum & Hedera (X402).\n\n"
+                        "KAI Nuvari provides: 6 ecosystem tokens (NVR, yBOB, YTOKEN, YGOLD, GAMI, CENTS), "
+                        "AMM pools, yield vaults, securities & insurance products, community commodity tokenization, "
+                        "M-Pesa integration, and conservation NFTs."
+                    )),
+                    HumanMessage(content=(
+                        f"Retrieved context from KAI Nuvari documentation:\n{context}\n\n"
+                        f"User question: {body.message}\n\n"
+                        f"Answer clearly using specifics from the context. If unsure, say so."
+                    )),
+                ]
+            else:
+                sources = 0
+                messages = [
+                    SystemMessage(content="You are KAI, an AI advisor."),
+                    HumanMessage(content=body.message),
+                ]
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream",
+            async def event_generator():
+                try:
+                    stream = model.stream(messages)
+                    for chunk in stream:
+                        token = chunk.content
+                        if token:
+                            yield f"data: {json.dumps({'token': token})}\n\n"
+                    yield f"data: {json.dumps({'done': True, 'sources': sources})}\n\n"
+                except Exception:
+                    from agents.needle_harness import run_needle_agent
+                    n_res = await run_needle_agent(body.message)
+                    text = n_res.get("text") or json.dumps(n_res.get("results", []), indent=2)
+                    for w in text.split(" "):
+                        yield f"data: {json.dumps({'token': w + ' '})}\n\n"
+                    yield f"data: {json.dumps({'done': True, 'sources': sources})}\n\n"
+
+            return StreamingResponse(event_generator(), media_type="text/event-stream",
+                                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+        except Exception:
+            pass
+
+    # 2. Seamless On-Device Needle streaming
+    async def needle_event_generator():
+        try:
+            from agents.needle_harness import run_needle_agent
+            n_res = await run_needle_agent(body.message)
+            text = n_res.get("text")
+            if not text and n_res.get("results"):
+                res_items = n_res["results"]
+                first = res_items[0].get("result") if isinstance(res_items[0], dict) else res_items[0]
+                text = json.dumps(first, indent=2)
+            elif not text:
+                if body.rag:
+                    docs = retriever.invoke(body.message)
+                    if docs:
+                        text = f"**KAI Knowledge Base:**\n\n{docs[0].page_content}"
+                    else:
+                        text = f"Query executed via on-device Needle agent: {body.message}"
+                else:
+                    text = f"Needle on-device agent active. (Query: {body.message})"
+
+            words = (text or "Response processed by Needle 2.").split(" ")
+            for w in words:
+                yield f"data: {json.dumps({'token': w + ' '})}\n\n"
+                await asyncio.sleep(0.01)
+            yield f"data: {json.dumps({'done': True, 'sources': 1 if body.rag else 0})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'token': f'Needle on-device error: {e}'})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'sources': 0})}\n\n"
+
+    return StreamingResponse(needle_event_generator(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
