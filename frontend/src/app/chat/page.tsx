@@ -10,22 +10,22 @@ import { formatChat } from '@/lib/formatChat';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_API_URL || 'http://localhost:8000';
 
-const WELCOME = `Hey! I'm **KAI Agent** — your Ethereum & Hedera DeFi companion powered by **Groq (Llama 3.1 8B)** with RAG context from Nuvari docs.
+const WELCOME = `Hey! I'm **KAI Agent** — your M-Pesa, Busha & Hedera cross-border rails companion powered by **Groq (Llama 3.1 8B)** with on-device Needle tool calling.
 
 Ask me about:
-• Ecosystem tokens (NVR, yBOB, YTOKEN, YGOLD, GAMI, CENTS)
-• Yield vaults and defensive commodity-backed vaults
-• Smart insurance, pension, and trust contracts
-• How to deploy on Ethereum & Hedera (X402)
-• Nuvari business model & revenue`;
+• M-Pesa Daraja STK Push & B2C automated settlement
+• Busha Pan-African FX liquidity corridors (KES, NGN, ZAR, GHS)
+• Hedera Token Service (KAIBAR / ConNFT) & HCS audit logging
+• x402 HTTP micro-payment protocol and route pricing
+• RWA Yield vaults, conservation pools, and staking`;
 
 const QUICK_PROMPTS = [
-  { label: ' NVR token', q: 'What is the NVR token?' },
-  { label: '💵 yBOB', q: 'Explain yBOB Stablecoin' },
-  { label: '📈 Yield', q: 'How do YToken and YGold work?' },
-  { label: '⚡ x402', q: 'Explain the x402 settlement layer' },
-  { label: '🔧 Sepolia setup', q: 'ETH Sepolia testnet setup' },
-  { label: '🔍 RAG context', q: 'RAG context available?' },
+  { label: '📱 M-Pesa Rails', q: 'How does M-Pesa Daraja integration work in KAI?' },
+  { label: '💱 Busha FX', q: 'Explain Busha cross-border FX corridors (KES, NGN, ZAR)' },
+  { label: '⚡ Hedera HTS', q: 'How do KAIBAR and ConNFT work on Hedera?' },
+  { label: '🔒 x402 Layer', q: 'Explain the x402 micro-payment settlement protocol' },
+  { label: '📜 HCS Audit', q: 'How does Hedera Consensus Service log transactions?' },
+  { label: '🎙️ Voice Box', q: 'How does the Voice Box STT/TTS pipeline work?' },
 ];
 
 interface Msg { role: 'ai' | 'user'; text: string; agent?: string; isRag?: boolean; }

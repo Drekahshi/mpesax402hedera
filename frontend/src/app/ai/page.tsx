@@ -78,6 +78,14 @@ const TOOLS = [
     ],
   },
   {
+    group: 'Cross-Border', icon: Zap, color: '#f59e0b',
+    items: [
+      { label: 'Busha FX Corridors',        q: 'How does Busha facilitate cross-border settlement between KES, NGN, and ZAR?' },
+      { label: 'M-Pesa Daraja Ingress',     q: 'Explain how M-Pesa STK Push deposits credit KAIBAR on Hedera.' },
+      { label: 'Cross-Border Remittance',   q: 'Show the step-by-step cross-border remittance flow from M-Pesa to Hedera to Busha payout.' },
+    ],
+  },
+  {
     group: 'Ecosystem', icon: Leaf, color: '#06b6d4',
     items: [
       { label: 'All KAI tokens explained',  q: 'Explain all 6 KAI ecosystem tokens and their roles' },
