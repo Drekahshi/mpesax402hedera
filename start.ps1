@@ -28,21 +28,21 @@ Write-Host "   Installing / updating dependencies..." -ForegroundColor Yellow
 & $VenvPip install -q -r (Join-Path $Root "requirements.txt") --upgrade
 Write-Host "   OK Dependencies ready." -ForegroundColor Green
 
-# -- 2. Check for GROQ_API_KEY --
+# -- 2. Check for GEMINI_API_KEY --
 Write-Host ">> Checking environment..." -ForegroundColor Yellow
 $envFile = Join-Path $Root ".env"
 if (Test-Path $envFile) {
     $envContent = Get-Content $envFile -Raw
-    if ($envContent -match "GROQ_API_KEY=(.+)") {
+    if ($envContent -match "GEMINI_API_KEY=(.+)") {
         $key = $Matches[1].Trim()
-        if ($key -and $key -ne "" -and $key -ne "your_groq_api_key_here") {
-            Write-Host "   OK GROQ_API_KEY is set." -ForegroundColor Green
+        if ($key -and $key -ne "" -and $key -ne "your_gemini_api_key_here") {
+            Write-Host "   OK GEMINI_API_KEY is set." -ForegroundColor Green
         } else {
-            Write-Host "   WARNING: GROQ_API_KEY is not set in .env" -ForegroundColor Red
-            Write-Host "   Get a free key from https://console.groq.com and add it to .env" -ForegroundColor Yellow
+            Write-Host "   WARNING: GEMINI_API_KEY is not set in .env" -ForegroundColor Red
+            Write-Host "   Get a key from https://aistudio.google.com and add it to .env" -ForegroundColor Yellow
         }
     } else {
-        Write-Host "   WARNING: GROQ_API_KEY not found in .env" -ForegroundColor Red
+        Write-Host "   WARNING: GEMINI_API_KEY not found in .env" -ForegroundColor Red
     }
 } else {
     Write-Host "   WARNING: .env file not found. Copy .env.example to .env" -ForegroundColor Red

@@ -1,7 +1,7 @@
 """
 agents/base.py
 Shared utilities for all KAI agents.
-Uses Groq cloud API — no local LLM required.
+Uses Google Gemini API with fallback to Groq or on-device Needle.
 """
 
 from __future__ import annotations
@@ -14,22 +14,40 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL   = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
-GROQ_URL     = "https://api.groq.com/openai/v1/chat/completions"
-TIMEOUT      = 60.0
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+GROQ_API_KEY   = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL     = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_URL       = "https://api.groq.com/openai/v1/chat/completions"
+TIMEOUT        = 60.0
 
 _OFFLINE_MSG = (
     "The AI model is currently unavailable. "
-    "Check your GROQ_API_KEY in .env.\n"
+    "Check your GEMINI_API_KEY in .env.\n"
     "All other agent features continue to work without it."
 )
 
 
 # ─── Availability probe ───────────────────────────────────────────────────────
 
+async def gemini_available() -> bool:
+    """Return True if Gemini API key is set and reachable."""
+    if not GEMINI_API_KEY:
+        return False
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+        payload = {"contents": [{"parts": [{"text": "ping"}]}]}
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            r = await client.post(url, json=payload)
+            return r.status_code == 200
+    except Exception:
+        return False
+
+
 async def groq_available() -> bool:
-    """Return True if Groq API key is set and reachable."""
+    """Return True if Gemini or Groq API key is set and reachable."""
+    if GEMINI_API_KEY:
+        return await gemini_available()
     if not GROQ_API_KEY:
         return False
     try:
@@ -44,6 +62,32 @@ async def groq_available() -> bool:
 
 
 # ─── Low-level helpers ────────────────────────────────────────────────────────
+
+async def gemini_complete(
+    prompt: str,
+    system: str = "",
+    model: str = GEMINI_MODEL,
+) -> str:
+    """Complete prompt using Google Gemini API."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+    contents = []
+    if system:
+        contents.append({"role": "user", "parts": [{"text": f"System Instructions: {system}"}]})
+        contents.append({"role": "model", "parts": [{"text": "Understood. I will follow these instructions."}]})
+    contents.append({"role": "user", "parts": [{"text": prompt}]})
+
+    payload = {
+        "contents": contents,
+        "generationConfig": {
+            "temperature": 0.3,
+            "maxOutputTokens": 2048,
+        }
+    }
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        resp = await client.post(url, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
 async def groq_complete(
     prompt: str,

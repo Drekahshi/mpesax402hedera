@@ -1,4 +1,6 @@
 langchain
+langchain-google-genai
+google-genai
 langchain-groq
 langchain-chroma
 numpy==2.2.6

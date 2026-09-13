@@ -21,7 +21,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional
-from langchain_groq import ChatGroq
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+except ImportError:
+    ChatGoogleGenerativeAI = None
+
+try:
+    from langchain_groq import ChatGroq
+except ImportError:
+    ChatGroq = None
+
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import HumanMessage, SystemMessage
 from vector import retriever
@@ -113,9 +122,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Groq & Needle config ───────────────────────────────────────────────────────
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL   = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+# ── Gemini & Groq & Needle config ─────────────────────────────────────────────
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+GROQ_API_KEY   = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL     = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
 model        = None
 chain        = None
@@ -155,7 +166,75 @@ KAI:"""
 prompt       = ChatPromptTemplate.from_template(RAG_TEMPLATE)
 plain_prompt = ChatPromptTemplate.from_template(PLAIN_TEMPLATE)
 
-if GROQ_API_KEY:
+from langchain_core.runnables import Runnable, RunnableConfig
+from langchain_core.messages import AIMessage
+
+class ChatGemini(Runnable):
+    """Native Google Gemini chat runnable for LangChain."""
+    def __init__(self, api_key: str, model: str = "gemini-flash-latest", temperature: float = 0.3, max_tokens: int = 2048):
+        self.api_key = api_key
+        self.model = model
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+
+    def _call(self, prompt_text: str, system_text: str = "") -> str:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+        contents = []
+        if system_text:
+            contents.append({"role": "user", "parts": [{"text": f"System Instructions: {system_text}"}]})
+            contents.append({"role": "model", "parts": [{"text": "Understood."}]})
+        contents.append({"role": "user", "parts": [{"text": prompt_text}]})
+        payload = {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": self.temperature,
+                "maxOutputTokens": self.max_tokens,
+            }
+        }
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.post(url, json=payload)
+            if resp.status_code != 200:
+                raise Exception(f"Gemini API error ({resp.status_code}): {resp.text}")
+            data = resp.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+    def invoke(self, input_val: any, config: RunnableConfig = None) -> AIMessage:
+        if hasattr(input_val, "to_string"):
+            text = input_val.to_string()
+        elif hasattr(input_val, "messages"):
+            text = "\n".join(f"{m.type}: {m.content}" for m in input_val.messages)
+        elif isinstance(input_val, dict):
+            text = str(input_val)
+        else:
+            text = str(input_val)
+        out = self._call(text)
+        return AIMessage(content=out)
+
+    def stream(self, input_val: any, config: RunnableConfig = None):
+        msg = self.invoke(input_val, config)
+        words = msg.content.split(" ")
+        for i, w in enumerate(words):
+            suffix = " " if i < len(words) - 1 else ""
+            yield AIMessage(content=w + suffix)
+
+# 1. Prioritize Gemini if GEMINI_API_KEY is present
+if GEMINI_API_KEY:
+    try:
+        model = ChatGemini(
+            api_key=GEMINI_API_KEY,
+            model=GEMINI_MODEL,
+            temperature=0.3,
+            max_tokens=2048,
+        )
+        chain        = prompt | model
+        plain_chain  = plain_prompt | model
+    except Exception:
+        model = None
+        chain = None
+        plain_chain = None
+
+# 2. Fall back to Groq if configured
+if model is None and GROQ_API_KEY and ChatGroq is not None:
     try:
         model = ChatGroq(
             model=GROQ_MODEL,
@@ -193,10 +272,12 @@ class NeedleRunRequest(BaseModel):
 
 @app.get("/health")
 def health():
+    active_provider = "gemini" if GEMINI_API_KEY else ("groq" if GROQ_API_KEY else "needle (on-device)")
+    active_model = GEMINI_MODEL if GEMINI_API_KEY else (GROQ_MODEL if GROQ_API_KEY else "needle-2 (on-device)")
     return {
         "status": "ok",
-        "model": GROQ_MODEL if GROQ_API_KEY else "needle-2 (on-device)",
-        "provider": "groq" if GROQ_API_KEY else "needle (on-device)",
+        "model": active_model,
+        "provider": active_provider,
         "needle_available": True,
         "agents": [
             "needle_dispatcher", "tx_analyst", "portfolio_health", "contract_auditor",
@@ -242,17 +323,21 @@ async def chat(body: ChatRequest):
     if not body.message.strip():
         raise HTTPException(400, "Message cannot be empty")
     
-    # 1. Try Groq if key is present
-    if GROQ_API_KEY and chain is not None:
+    # 1. Try Gemini or Groq if key is present
+    if (GEMINI_API_KEY or GROQ_API_KEY) and chain is not None:
         try:
             if body.rag:
                 docs    = retriever.invoke(body.message)
                 context = "\n\n".join(f"[Doc {i+1}]: {d.page_content}" for i, d in enumerate(docs))
                 result  = chain.invoke({"reviews": context, "question": body.message})
-                return ChatResponse(text=str(result), agent="KAI Agent", rag_used=True, sources_count=len(docs))
+                out_text = result.content if hasattr(result, "content") else str(result)
+                provider_tag = "Gemini" if GEMINI_API_KEY else "Groq"
+                return ChatResponse(text=out_text, agent=f"KAI Agent ({provider_tag})", rag_used=True, sources_count=len(docs))
             if plain_chain is not None:
                 result = plain_chain.invoke({"question": body.message})
-                return ChatResponse(text=str(result), agent="KAI Agent", rag_used=False, sources_count=0)
+                out_text = result.content if hasattr(result, "content") else str(result)
+                provider_tag = "Gemini" if GEMINI_API_KEY else "Groq"
+                return ChatResponse(text=out_text, agent=f"KAI Agent ({provider_tag})", rag_used=False, sources_count=0)
         except Exception:
             pass
 
@@ -293,8 +378,8 @@ async def stream_chat(body: ChatRequest):
     if not body.message.strip():
         raise HTTPException(400, "Message cannot be empty")
     
-    # 1. Try Groq streaming if configured
-    if GROQ_API_KEY and model is not None:
+    # 1. Try Gemini / Groq streaming if configured
+    if (GEMINI_API_KEY or GROQ_API_KEY) and model is not None:
         try:
             if body.rag:
                 docs    = retriever.invoke(body.message)
