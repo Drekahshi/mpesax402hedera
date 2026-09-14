@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useConnect, useAccount, useDisconnect, useChainId, useSwitchChain, type Connector } from 'wagmi';
+import { useConnect, useAccount, useDisconnect, useChainId, type Connector } from 'wagmi';
 import { X, LogOut, RefreshCw, Wallet, Leaf, ArrowLeftRight, CheckCircle } from 'lucide-react';
 import {
   switchToHederaTestnet,
@@ -9,6 +9,13 @@ import {
   chainName,
   CHAIN_IDS,
 } from '@/lib/hederaNetwork';
+import {
+  openHashPackPairingModal,
+  disconnectHashPack,
+  subscribeHashPackState,
+  getHashPackState,
+  type HashPackState,
+} from '@/lib/hashconnectClient';
 
 interface WalletConnectModalProps {
   onClose: () => void;
@@ -30,39 +37,40 @@ function getWalletMeta(connector: Connector): {
   if (key.includes('metamask')) return {
     icon: <MetaMaskIcon />,
     label: 'MetaMask',
-    description: 'Browser extension · EVM + Hedera via RPC relay',
+    description: 'Browser extension · EVM + Hedera JSON-RPC relay',
     color: '#F6851B',
     border: 'rgba(246,133,27,0.35)',
     bg: 'rgba(246,133,27,0.07)',
-    priority: 2,   // second — after HashPack
+    priority: 1,
   };
 
   if (key.includes('walletconnect')) return {
-    icon: <WalletConnectIcon />,
-    label: 'HashPack',
-    description: 'Hedera native · HBAR · HTS tokens · NFTs · x402',
-    color: '#63b3ed',
-    border: 'rgba(99,179,237,0.38)',
-    bg: 'rgba(99,179,237,0.07)',
-    priority: 1,   // first — HashPack preferred
+    icon: <WalletConnectGenericIcon />,
+    label: 'WalletConnect (Mobile)',
+    description: 'Scan QR code with mobile wallet app (e.g. Rainbow, MetaMask)',
+    color: '#3b82f6',
+    border: 'rgba(59,130,246,0.35)',
+    bg: 'rgba(59,130,246,0.07)',
+    priority: 3,
   };
 
   return {
     icon: <Wallet size={24} color="#22c55e" />,
-    label: connector.name,
-    description: 'EIP-1193 compatible wallet',
+    label: connector.name || 'Browser Wallet',
+    description: 'Injected EIP-1193 wallet (Brave, Rabby, Coinbase)',
     color: '#22c55e',
     border: 'rgba(34,197,94,0.3)',
     bg: 'rgba(34,197,94,0.06)',
-    priority: 3,
+    priority: 2,
   };
 }
 
 // ── Chain indicator pill ──────────────────────────────────────────────────────
 
-function ChainPill({ chainId }: { chainId: number }) {
-  const isHedera = chainId === CHAIN_IDS.hederaTestnet || chainId === CHAIN_IDS.hederaMainnet;
+function ChainPill({ chainId, label }: { chainId?: number; label?: string }) {
+  const isHedera = label?.toLowerCase().includes('hedera') || chainId === CHAIN_IDS.hederaTestnet || chainId === CHAIN_IDS.hederaMainnet;
   const color    = isHedera ? '#63b3ed' : '#f59e0b';
+  const text     = label || (chainId ? chainName(chainId).toUpperCase() : 'HEDERA');
   return (
     <span style={{
       fontSize: 9, fontWeight: 700, letterSpacing: 0.8,
@@ -71,7 +79,7 @@ function ChainPill({ chainId }: { chainId: number }) {
       border: `1px solid ${isHedera ? 'rgba(99,179,237,0.3)' : 'rgba(245,158,11,0.3)'}`,
       borderRadius: 5, padding: '2px 7px',
     }}>
-      {chainName(chainId).toUpperCase()}
+      {text}
     </span>
   );
 }
@@ -115,17 +123,26 @@ export default function WalletConnectModal({ onClose }: WalletConnectModalProps)
   const { disconnect } = useDisconnect();
   const chainId = useChainId();
 
-  const [connectingId, setConnectingId]     = useState<string | null>(null);
-  const [switchingNet, setSwitchingNet]     = useState<'hedera' | 'sepolia' | null>(null);
-  const [switchError,  setSwitchError]      = useState<string | null>(null);
+  const [connectingId, setConnectingId]         = useState<string | null>(null);
+  const [connectingHashPack, setConnectingHashPack] = useState(false);
+  const [hashPackState, setHashPackState]       = useState<HashPackState>(getHashPackState());
+  const [switchingNet, setSwitchingNet]         = useState<'hedera' | 'sepolia' | null>(null);
+  const [hashPackError, setHashPackError]       = useState<string | null>(null);
+  const [switchError,  setSwitchError]          = useState<string | null>(null);
+
+  // Subscribe to HashPack state
+  useEffect(() => {
+    const unsub = subscribeHashPackState(setHashPackState);
+    return unsub;
+  }, []);
 
   // Auto-close after successful connection
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected || hashPackState.connected) {
       const t = setTimeout(onClose, 1100);
       return () => clearTimeout(t);
     }
-  }, [isConnected, onClose]);
+  }, [isConnected, hashPackState.connected, onClose]);
 
   useEffect(() => {
     if (status !== 'pending') setConnectingId(null);
@@ -135,6 +152,23 @@ export default function WalletConnectModal({ onClose }: WalletConnectModalProps)
     setConnectingId(connector.id);
     connect({ connector }, { onError: () => setConnectingId(null) });
   }, [connect]);
+
+  const handleConnectHashPack = useCallback(async () => {
+    setHashPackError(null);
+    try {
+      setConnectingHashPack(true);
+      await openHashPackPairingModal();
+    } catch (err: any) {
+      console.error('[HashPack] Connect error:', err);
+      setHashPackError(err?.message || 'Failed to connect to HashPack extension');
+    } finally {
+      setConnectingHashPack(false);
+    }
+  }, []);
+
+  const handleDisconnectHashPack = useCallback(async () => {
+    await disconnectHashPack();
+  }, []);
 
   const handleSwitchToHedera = useCallback(async () => {
     setSwitchingNet('hedera');
@@ -160,7 +194,7 @@ export default function WalletConnectModal({ onClose }: WalletConnectModalProps)
     }
   }, []);
 
-  // Sort connectors: WalletConnect (HashPack) first, MetaMask second, then others
+  // Sort connectors: MetaMask first, generic injected second, WalletConnect third
   const sortedConnectors = [...connectors].sort((a, b) => {
     const pa = getWalletMeta(a).priority;
     const pb = getWalletMeta(b).priority;
@@ -176,6 +210,7 @@ export default function WalletConnectModal({ onClose }: WalletConnectModalProps)
 
   const isOnHedera  = chainId === CHAIN_IDS.hederaTestnet || chainId === CHAIN_IDS.hederaMainnet;
   const isOnSepolia = chainId === CHAIN_IDS.sepolia;
+  const isAnyConnected = isConnected || hashPackState.connected;
 
   return (
     <div
@@ -189,7 +224,7 @@ export default function WalletConnectModal({ onClose }: WalletConnectModalProps)
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          width: '100%', maxWidth: 400, borderRadius: 24, padding: '22px 20px',
+          width: '100%', maxWidth: 420, borderRadius: 24, padding: '22px 20px',
           background: '#18291f', border: '1px solid rgba(34,197,94,0.2)',
           boxShadow: '0 28px 90px rgba(0,0,0,0.65)', position: 'relative',
         }}
@@ -219,101 +254,129 @@ export default function WalletConnectModal({ onClose }: WalletConnectModalProps)
             Connect Wallet
           </h2>
           <p style={{ fontSize: 11, color: 'rgba(240,253,244,0.45)', margin: 0 }}>
-            MetaMask · HashPack · Any WalletConnect wallet
+            HashPack Extension · MetaMask · WalletConnect
           </p>
         </div>
 
         {/* ── Connected state ────────────────────────────────────────────── */}
-        {isConnected ? (
+        {isAnyConnected ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {/* Account row */}
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
-              borderRadius: 14, background: 'rgba(34,197,94,0.08)',
-              border: '1px solid rgba(34,197,94,0.25)',
-            }}>
+            
+            {/* HashPack Connected Row */}
+            {hashPackState.connected && (
               <div style={{
-                width: 36, height: 36, borderRadius: '50%',
-                background: 'rgba(34,197,94,0.15)', border: '2px solid #22c55e',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-              }}>✓</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#f0fdf4' }}>Connected</span>
-                  <ChainPill chainId={chainId} />
-                </div>
-                <code style={{ fontSize: 11, color: '#22c55e' }}>
-                  {address?.slice(0, 6)}…{address?.slice(-4)}
-                </code>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginLeft: 6 }}>
-                  via {activeConnector?.name}
-                </span>
-              </div>
-              <button onClick={() => disconnect()} style={{
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                color: '#f87171', fontSize: 11, fontWeight: 600,
-                display: 'flex', alignItems: 'center', gap: 4,
+                display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+                borderRadius: 14, background: 'rgba(99,179,237,0.08)',
+                border: '1px solid rgba(99,179,237,0.25)',
               }}>
-                <LogOut size={13} />
-              </button>
-            </div>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: 'rgba(99,179,237,0.15)', border: '2px solid #63b3ed',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, color: '#63b3ed',
+                }}>ℏ</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#f0fdf4' }}>HashPack Connected</span>
+                    <ChainPill label="HEDERA TESTNET" />
+                  </div>
+                  <code style={{ fontSize: 11, color: '#63b3ed' }}>
+                    {hashPackState.session?.accountIds?.[0] ?? 'Connected'}
+                  </code>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginLeft: 6 }}>
+                    native Hedera
+                  </span>
+                </div>
+                <button onClick={handleDisconnectHashPack} style={{
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: '#f87171', fontSize: 11, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}>
+                  <LogOut size={13} />
+                </button>
+              </div>
+            )}
 
-            {/* Network switch row */}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={handleSwitchToHedera}
-                disabled={isOnHedera || switchingNet !== null}
-                style={{
-                  flex: 1, padding: '9px 0', borderRadius: 10, fontSize: 11, fontWeight: 700,
-                  background: isOnHedera ? 'rgba(99,179,237,0.15)' : 'rgba(99,179,237,0.08)',
-                  border: `1px solid ${isOnHedera ? 'rgba(99,179,237,0.5)' : 'rgba(99,179,237,0.25)'}`,
-                  color: isOnHedera ? '#63b3ed' : 'rgba(99,179,237,0.7)',
-                  cursor: isOnHedera ? 'default' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            {/* EVM Connected Row */}
+            {isConnected && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
+                borderRadius: 14, background: 'rgba(34,197,94,0.08)',
+                border: '1px solid rgba(34,197,94,0.25)',
+              }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: 'rgba(34,197,94,0.15)', border: '2px solid #22c55e',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                }}>✓</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#f0fdf4' }}>Connected</span>
+                    <ChainPill chainId={chainId} />
+                  </div>
+                  <code style={{ fontSize: 11, color: '#22c55e' }}>
+                    {address?.slice(0, 6)}…{address?.slice(-4)}
+                  </code>
+                  <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', marginLeft: 6 }}>
+                    via {activeConnector?.name}
+                  </span>
+                </div>
+                <button onClick={() => disconnect()} style={{
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: '#f87171', fontSize: 11, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: 4,
                 }}>
-                {switchingNet === 'hedera'
-                  ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} />
-                  : isOnHedera
-                    ? <CheckCircle size={11} />
-                    : <ArrowLeftRight size={11} />
-                }
-                Hedera Testnet
-              </button>
-              <button
-                onClick={handleSwitchToSepolia}
-                disabled={isOnSepolia || switchingNet !== null}
-                style={{
-                  flex: 1, padding: '9px 0', borderRadius: 10, fontSize: 11, fontWeight: 700,
-                  background: isOnSepolia ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.07)',
-                  border: `1px solid ${isOnSepolia ? 'rgba(245,158,11,0.5)' : 'rgba(245,158,11,0.2)'}`,
-                  color: isOnSepolia ? '#f59e0b' : 'rgba(245,158,11,0.65)',
-                  cursor: isOnSepolia ? 'default' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                }}>
-                {switchingNet === 'sepolia'
-                  ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} />
-                  : isOnSepolia
-                    ? <CheckCircle size={11} />
-                    : <ArrowLeftRight size={11} />
-                }
-                Sepolia
-              </button>
-            </div>
+                  <LogOut size={13} />
+                </button>
+              </div>
+            )}
+
+            {/* Network switch row for EVM */}
+            {isConnected && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  onClick={handleSwitchToHedera}
+                  disabled={isOnHedera || switchingNet !== null}
+                  style={{
+                    flex: 1, padding: '9px 0', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                    background: isOnHedera ? 'rgba(99,179,237,0.15)' : 'rgba(99,179,237,0.08)',
+                    border: `1px solid ${isOnHedera ? 'rgba(99,179,237,0.5)' : 'rgba(99,179,237,0.25)'}`,
+                    color: isOnHedera ? '#63b3ed' : 'rgba(99,179,237,0.7)',
+                    cursor: isOnHedera ? 'default' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                  }}>
+                  {switchingNet === 'hedera'
+                    ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} />
+                    : isOnHedera
+                      ? <CheckCircle size={11} />
+                      : <ArrowLeftRight size={11} />
+                  }
+                  Hedera Testnet
+                </button>
+                <button
+                  onClick={handleSwitchToSepolia}
+                  disabled={isOnSepolia || switchingNet !== null}
+                  style={{
+                    flex: 1, padding: '9px 0', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                    background: isOnSepolia ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.07)',
+                    border: `1px solid ${isOnSepolia ? 'rgba(245,158,11,0.5)' : 'rgba(245,158,11,0.2)'}`,
+                    color: isOnSepolia ? '#f59e0b' : 'rgba(245,158,11,0.65)',
+                    cursor: isOnSepolia ? 'default' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                  }}>
+                  {switchingNet === 'sepolia'
+                    ? <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} />
+                    : isOnSepolia
+                      ? <CheckCircle size={11} />
+                      : <ArrowLeftRight size={11} />
+                  }
+                  Sepolia
+                </button>
+              </div>
+            )}
 
             {switchError && (
               <p style={{ fontSize: 11, color: '#f87171', margin: 0, textAlign: 'center' }}>
                 {switchError}
-              </p>
-            )}
-
-            {/* Hedera relay note */}
-            {isOnHedera && (
-              <p style={{
-                fontSize: 10, color: 'rgba(99,179,237,0.6)', margin: 0, textAlign: 'center',
-                lineHeight: 1.5,
-              }}>
-                MetaMask is connected to Hedera via the JSON-RPC relay.<br />
-                KAI tokens on Hedera are fully accessible.
               </p>
             )}
           </div>
@@ -329,16 +392,57 @@ export default function WalletConnectModal({ onClose }: WalletConnectModalProps)
             }}>
               <HederaIcon />
               <p style={{ fontSize: 10, color: 'rgba(99,179,237,0.8)', margin: 0, lineHeight: 1.5 }}>
-                <strong style={{ color: '#63b3ed' }}>HashPack</strong> is the recommended wallet —
-                native Hedera HBAR, HTS tokens &amp; NFTs. MetaMask also works via the JSON-RPC relay.
+                <strong style={{ color: '#63b3ed' }}>HashPack</strong> is the native Hedera wallet (HBAR, HTS tokens, NFTs).
+                <strong style={{ color: '#f6851b', marginLeft: 4 }}>MetaMask</strong> connects via JSON-RPC relay for EVM contracts.
               </p>
             </div>
 
-            {/* Wallet tiles — MetaMask first */}
+            {/* 1. HashPack Native Extension Tile */}
+            <button
+              onClick={handleConnectHashPack}
+              disabled={connectingHashPack}
+              aria-label="Connect with HashPack"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '13px 15px', borderRadius: 14, textAlign: 'left',
+                border: '1px solid rgba(99,179,237,0.38)', background: 'rgba(99,179,237,0.07)',
+                cursor: connectingHashPack ? 'not-allowed' : 'pointer',
+                opacity: connectingHashPack ? 0.7 : 1,
+                transition: 'all 0.2s', width: '100%',
+              }}
+            >
+              <div style={{
+                width: 46, height: 46, borderRadius: 12, background: 'rgba(0,0,0,0.22)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <HashPackIcon />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: '#f0fdf4', margin: 0 }}>
+                    HashPack
+                  </p>
+                  <span style={{
+                    fontSize: 8, fontWeight: 700, letterSpacing: 1,
+                    background: 'rgba(99,179,237,0.18)', color: '#63b3ed',
+                    border: '1px solid rgba(99,179,237,0.35)',
+                    borderRadius: 4, padding: '1px 5px',
+                  }}>NATIVE EXTENSION</span>
+                </div>
+                <p style={{ fontSize: 11, color: 'rgba(240,253,244,0.45)', margin: 0 }}>
+                  Hedera native · Browser extension popup · HTS tokens
+                </p>
+              </div>
+              {connectingHashPack
+                ? <RefreshCw size={15} color="#63b3ed" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+                : <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 17, flexShrink: 0 }}>›</span>
+              }
+            </button>
+
+            {/* 2. EVM Connectors (MetaMask, Injected, WalletConnect) */}
             {visibleConnectors.map(connector => {
-              const meta      = getWalletMeta(connector);
+              const meta       = getWalletMeta(connector);
               const connecting = status === 'pending' && connectingId === connector.id;
-              const isWC      = connector.id.toLowerCase().includes('walletconnect');
 
               return (
                 <button
@@ -366,14 +470,6 @@ export default function WalletConnectModal({ onClose }: WalletConnectModalProps)
                       <p style={{ fontSize: 14, fontWeight: 800, color: '#f0fdf4', margin: 0 }}>
                         {meta.label}
                       </p>
-                      {isWC && (
-                        <span style={{
-                          fontSize: 8, fontWeight: 700, letterSpacing: 1,
-                          background: 'rgba(99,179,237,0.18)', color: '#63b3ed',
-                          border: '1px solid rgba(99,179,237,0.35)',
-                          borderRadius: 4, padding: '1px 5px',
-                        }}>PREFERRED</span>
-                      )}
                     </div>
                     <p style={{ fontSize: 11, color: 'rgba(240,253,244,0.45)', margin: 0 }}>
                       {meta.description}
@@ -390,14 +486,14 @@ export default function WalletConnectModal({ onClose }: WalletConnectModalProps)
             {/* KAI Wallet coming soon */}
             <KaiWalletTile />
 
-            {error && (
+            {(error || hashPackError) && (
               <div style={{
                 padding: '10px 13px', borderRadius: 10, fontSize: 12, color: '#f87171',
                 background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)',
               }}>
                 <p style={{ fontWeight: 700, margin: '0 0 3px' }}>Connection Error</p>
-                <p style={{ margin: '0 0 6px', fontSize: 11 }}>{error.message}</p>
-                <button onClick={reset} style={{
+                <p style={{ margin: '0 0 6px', fontSize: 11 }}>{hashPackError || error?.message}</p>
+                <button onClick={() => { setHashPackError(null); reset(); }} style={{
                   background: 'transparent', border: 'none', cursor: 'pointer',
                   color: '#22c55e', fontSize: 11, fontWeight: 700,
                 }}>
@@ -410,7 +506,7 @@ export default function WalletConnectModal({ onClose }: WalletConnectModalProps)
               fontSize: 10, textAlign: 'center', color: 'rgba(255,255,255,0.25)',
               lineHeight: 1.5, marginTop: 2,
             }}>
-              HashPack = native Hedera · MetaMask connects via JSON-RPC relay
+              HashPack = native Hedera · MetaMask = Hedera JSON-RPC relay
             </p>
           </div>
         )}
@@ -420,6 +516,18 @@ export default function WalletConnectModal({ onClose }: WalletConnectModalProps)
 }
 
 /* ── SVG Icons ─────────────────────────────────────────────────────────────── */
+
+function HashPackIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 40 40" fill="none">
+      <rect x="3" y="3" width="34" height="34" rx="10" fill="#1a365d" stroke="#63b3ed" strokeWidth="1.5"/>
+      <path d="M11 12 L11 28 M11 20 L21 20 M21 12 L21 28"
+            stroke="#63b3ed" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M24 20 L29 20" stroke="#90cdf4" strokeWidth="2.5" strokeLinecap="round"/>
+      <circle cx="29" cy="20" r="2.5" fill="#63b3ed"/>
+    </svg>
+  );
+}
 
 function MetaMaskIcon() {
   return (
@@ -436,16 +544,12 @@ function MetaMaskIcon() {
   );
 }
 
-function WalletConnectIcon() {
+function WalletConnectGenericIcon() {
   return (
     <svg width="26" height="26" viewBox="0 0 40 40" fill="none">
-      <rect x="3" y="3" width="34" height="34" rx="10" fill="#1a365d" stroke="#63b3ed" strokeWidth="1.5"/>
-      {/* HashPack H */}
-      <path d="M11 12 L11 28 M11 20 L21 20 M21 12 L21 28"
-            stroke="#63b3ed" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-      {/* bar accent */}
-      <path d="M24 20 L29 20" stroke="#90cdf4" strokeWidth="2.5" strokeLinecap="round"/>
-      <circle cx="29" cy="20" r="2.5" fill="#63b3ed"/>
+      <rect x="3" y="3" width="34" height="34" rx="10" fill="#1e293b" stroke="#3b82f6" strokeWidth="1.5"/>
+      <path d="M12 16 C16 12 24 12 28 16 L23 21 C21 19 19 19 17 21 Z" fill="#3b82f6" />
+      <circle cx="20" cy="25" r="3" fill="#60a5fa" />
     </svg>
   );
 }

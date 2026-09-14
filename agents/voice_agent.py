@@ -4,18 +4,19 @@ Voice box for KAI Nuvari — Speech-to-Text + Text-to-Speech pipeline.
 
 Architecture:
     Browser mic → WebM/Opus audio → POST /agents/voice/transcribe
-                                        → Groq Whisper STT → text
+                                        → Google Gemini STT → text
     text → POST /agents/voice/speak    → edge-tts → MP3 audio bytes
-    text → POST /agents/voice/chat     → KAI agent → answer text
+    text → POST /agents/voice/chat     → Gemini agent → answer text
                                         → edge-tts → streaming MP3
 
-STT:  Groq Whisper API  (cloud, fast, same key already in .env)
-TTS:  edge-tts          (Microsoft Edge TTS, no API key, high quality)
+STT:  Google Gemini multimodal API  (inline base64 audio, same key already in .env)
+TTS:  edge-tts                      (Microsoft Edge TTS, no API key, high quality)
       Voice: en-US-AvaMultilingualNeural  (warm, natural, default)
       Fallback voices: en-US-AndrewNeural, en-GB-SoniaNeural
 
 Env vars:
-    GROQ_API_KEY   — for Whisper transcription
+    GEMINI_API_KEY — for Gemini STT + chat
+    GEMINI_MODEL   — Gemini model (default: gemini-3.6-flash)
     VOICE_NAME     — edge-tts voice (default: en-US-AvaMultilingualNeural)
     VOICE_RATE     — speech rate e.g. '+10%' faster, '-10%' slower (default '+0%')
     VOICE_PITCH    — pitch e.g. '+5Hz' (default '+0Hz')
@@ -32,7 +33,7 @@ from typing import AsyncIterator
 import httpx
 import edge_tts
 from dotenv import load_dotenv
-from .base import AgentBase, groq_complete, groq_stream
+from .base import AgentBase, gemini_complete, gemini_stream
 
 load_dotenv()
 
@@ -53,42 +54,50 @@ AVAILABLE_VOICES = {
     "guy":    "en-US-GuyNeural",                  # US male, deep
 }
 
-# ── STT (Groq Whisper) ────────────────────────────────────────────────────────
+# ── STT (Google Gemini multimodal) ───────────────────────────────────────────
 
-GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "")
-GROQ_STT_URL  = "https://api.groq.com/openai/v1/audio/transcriptions"
-WHISPER_MODEL = "whisper-large-v3-turbo"   # fastest Groq Whisper model
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
-STT_SYSTEM = """You are transcribing voice input for KAI Nuvari — a DeFi and 
-conservation finance assistant on Hedera blockchain. The user may ask about 
-HBAR, KBAR, HTS tokens, conservation NFTs, x402 payments, or DeFi operations.
-Transcribe accurately, preserving blockchain terms like account IDs (0.0.XXXXX),
-token names, and financial figures."""
+STT_PROMPT = """Transcribe the spoken audio exactly as heard. 
+This is voice input for KAI Nuvari — a DeFi and conservation finance assistant 
+on Hedera blockchain. Preserve blockchain terms like account IDs (0.0.XXXXX), 
+token names (HBAR, KBAR, HTS, NFT, x402), and financial figures accurately. 
+Return only the transcribed text, nothing else."""
 
 
 async def transcribe_audio(audio_bytes: bytes, filename: str = "audio.webm") -> str:
     """
-    Transcribe audio bytes using Groq Whisper API.
-    Accepts WebM, MP3, WAV, M4A, OGG. Returns transcribed text.
+    Transcribe audio bytes using Google Gemini multimodal API.
+    Accepts WebM, MP3, WAV, M4A, OGG, FLAC. Returns transcribed text.
     """
-    if not GROQ_API_KEY:
-        raise ValueError("GROQ_API_KEY not set — cannot transcribe audio")
+    import base64
+
+    if not GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY not set — cannot transcribe audio")
+
+    mime = _mime_type(filename)
+    audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+    )
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": STT_PROMPT},
+                {"inline_data": {"mime_type": mime, "data": audio_b64}},
+            ]
+        }],
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": 1024},
+    }
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(
-            GROQ_STT_URL,
-            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-            files={"file": (filename, audio_bytes, _mime_type(filename))},
-            data={
-                "model":           WHISPER_MODEL,
-                "language":        "en",
-                "response_format": "json",
-                "prompt":          "KAI Nuvari, HBAR, KBAR, Hedera, HTS, NFT, DeFi, x402",
-            },
-        )
+        resp = await client.post(url, json=payload)
         resp.raise_for_status()
-        result = resp.json()
-        return result.get("text", "").strip()
+        data = resp.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
 
 def _mime_type(filename: str) -> str:
@@ -229,8 +238,8 @@ class VoiceAgent(AgentBase):
         import base64
         t0 = time.time()
 
-        # Get KAI's text response
-        response_text = await groq_complete(
+        # Get KAI's text response via Gemini
+        response_text = await gemini_complete(
             prompt=text,
             system=VOICE_SYSTEM,
         )
@@ -263,10 +272,10 @@ class VoiceAgent(AgentBase):
         """
         import base64
 
-        # Collect the full text while streaming tokens
+        # Collect the full text while streaming tokens via Gemini
         full_text = []
 
-        async for sse_line in groq_stream(text, system=VOICE_SYSTEM):
+        async for sse_line in gemini_stream(text, system=VOICE_SYSTEM):
             if not sse_line.startswith("data: "):
                 continue
             payload = json.loads(sse_line[6:])

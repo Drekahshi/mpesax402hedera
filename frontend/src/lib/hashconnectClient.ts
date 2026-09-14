@@ -184,6 +184,14 @@ export async function pairWithHashPack(): Promise<string> {
 }
 
 /**
+ * Open the native HashPack pairing modal which triggers the browser extension.
+ */
+export async function openHashPackPairingModal(): Promise<void> {
+  const hc = await initHashConnect();
+  await hc.openPairingModal('dark', '#18291f', '#63b3ed', '#90cdf4', '16px');
+}
+
+/**
  * Disconnect the active HashPack session.
  */
 export async function disconnectHashPack(): Promise<void> {

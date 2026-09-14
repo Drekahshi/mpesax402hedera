@@ -89,6 +89,71 @@ async def gemini_complete(
         data = resp.json()
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
+
+async def gemini_stream(
+    prompt: str,
+    system: str = "",
+    model: str = GEMINI_MODEL,
+) -> AsyncIterator[str]:
+    """
+    Stream tokens from Gemini as SSE lines (same interface as groq_stream).
+    Uses streamGenerateContent with alt=sse for server-sent events.
+    Falls back to a single non-streamed call if streaming fails.
+    """
+    if not GEMINI_API_KEY:
+        yield f"data: {json.dumps({'token': _OFFLINE_MSG})}\n\n"
+        yield f"data: {json.dumps({'done': True})}\n\n"
+        return
+
+    url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"{model}:streamGenerateContent?alt=sse&key={GEMINI_API_KEY}"
+    )
+    contents = []
+    if system:
+        contents.append({"role": "user", "parts": [{"text": f"System Instructions: {system}"}]})
+        contents.append({"role": "model", "parts": [{"text": "Understood. I will follow these instructions."}]})
+    contents.append({"role": "user", "parts": [{"text": prompt}]})
+
+    payload = {
+        "contents": contents,
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 2048},
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            async with client.stream("POST", url, json=payload) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line or not line.startswith("data: "):
+                        continue
+                    data_str = line[6:].strip()
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        continue
+                    parts = (
+                        chunk.get("candidates", [{}])[0]
+                        .get("content", {})
+                        .get("parts", [])
+                    )
+                    for part in parts:
+                        token = part.get("text", "")
+                        if token:
+                            yield f"data: {json.dumps({'token': token})}\n\n"
+        yield f"data: {json.dumps({'done': True})}\n\n"
+    except Exception as e:
+        # Fallback: single blocking call, emit as one chunk
+        try:
+            text = await gemini_complete(prompt, system=system, model=model)
+            for word in text.split(" "):
+                yield f"data: {json.dumps({'token': word + ' '})}\n\n"
+        except Exception:
+            yield f"data: {json.dumps({'token': _OFFLINE_MSG})}\n\n"
+        yield f"data: {json.dumps({'done': True, 'error': str(e)})}\n\n"
+
 async def groq_complete(
     prompt: str,
     system: str = "",
