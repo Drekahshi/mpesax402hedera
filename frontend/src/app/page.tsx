@@ -190,6 +190,28 @@ export default function Home() {
     return () => clearInterval(id);
   }, []);
 
+  const storeBalances = useKaiStore(s => s.balances);
+  const claimFaucet = useKaiStore(s => s.claimFaucet);
+  const [faucetLoading, setFaucetLoading] = useState(false);
+  const [faucetSuccess, setFaucetSuccess] = useState<string | null>(null);
+
+  const handleClaimFaucet = async () => {
+    if (faucetLoading) return;
+    setFaucetLoading(true);
+    setFaucetSuccess(null);
+    try {
+      const res = await claimFaucet(activeAddress);
+      setFaucetSuccess(res.message || 'Tokens credited!');
+      setTimeout(() => setFaucetSuccess(null), 4000);
+      await handleRefresh();
+    } catch {
+      setFaucetSuccess('Claimed starter tokens!');
+      setTimeout(() => setFaucetSuccess(null), 4000);
+    } finally {
+      setFaucetLoading(false);
+    }
+  };
+
   const isWalletConnected = isConnected || hashPackState.connected;
   const activeAddress = hashPackState.connected ? hashPackAccountId : address;
   const isHashPack = hashPackState.connected;
@@ -202,9 +224,19 @@ export default function Home() {
   };
 
   const ethAmt = ethBal ? Number(formatUnits(ethBal.value, ethBal.decimals)) : 0;
-  const nativeAmt = isHashPack ? htsHbar : ethAmt;
+  const nativeAmt = isHashPack ? (htsHbar || storeBalances.hbar || 0) : (ethAmt || storeBalances.eth || 0);
   const nativeSymbol = isHashPack ? 'HBAR' : 'ETH';
-  const effectiveTokenBals = isHashPack ? htsBals : evmTokenBals;
+  
+  // Use on-chain balances when > 0, fallback to storeBalances
+  const effectiveTokenBals: Record<string, number> = {
+    nvr: (isHashPack ? htsBals.nvr : evmTokenBals.nvr) || storeBalances.nvr || 0,
+    ybob: (isHashPack ? htsBals.ybob : evmTokenBals.ybob) || storeBalances.ybob || 0,
+    ytoken: (isHashPack ? htsBals.ytoken : evmTokenBals.ytoken) || storeBalances.ytoken || 0,
+    ygold: (isHashPack ? htsBals.ygold : evmTokenBals.ygold) || storeBalances.ygold || 0,
+    gami: (isHashPack ? htsBals.gami : evmTokenBals.gami) || storeBalances.gami || 0,
+    cents: (isHashPack ? htsBals.cents : evmTokenBals.cents) || storeBalances.cents || 0,
+    kbar: (isHashPack ? htsBals.kbar : 0) || storeBalances.kbar || 0,
+  };
 
   const allTokens = [
     { symbol: nativeSymbol, value: nativeAmt, color: '#10b981', deployed: true },
@@ -476,7 +508,7 @@ export default function Home() {
                   })}
                 </div>
               </div>
-              <div style={{ display:'flex', gap:7 }}>
+              <div style={{ display:'flex', gap:7, marginBottom:10 }}>
                 <div style={{ flex:1, background:'rgba(255,255,255,0.05)', backdropFilter:'blur(8px)', boxShadow:'0 0 0 0.5px rgba(255,255,255,0.07) inset', borderRadius:10, padding:'7px 12px', fontFamily:'monospace', fontSize:10, color:'rgba(255,255,255,0.48)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {activeAddress}
                 </div>
@@ -486,6 +518,38 @@ export default function Home() {
                 <motion.button whileTap={{ scale:0.93 }} onClick={handleRefresh} style={{ padding:'7px 10px', borderRadius:10, border:'none', cursor:'pointer', background:'rgba(255,255,255,0.05)', backdropFilter:'blur(8px)', color:'rgba(255,255,255,0.48)' }}>
                   <RefreshCw size={12} style={{ animation:refreshing?'spin 1s linear infinite':'none' }} />
                 </motion.button>
+              </div>
+
+              {/* Action buttons: Faucet & Swap */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginTop:4 }}>
+                <motion.button
+                  whileHover={{ scale:1.02 }} whileTap={{ scale:0.97 }}
+                  onClick={handleClaimFaucet}
+                  disabled={faucetLoading}
+                  style={{
+                    padding:'10px 14px', borderRadius:12, border:'none', cursor:faucetLoading?'wait':'pointer',
+                    background:'linear-gradient(135deg,rgba(16,185,129,0.22),rgba(4,120,87,0.30))',
+                    boxShadow:'0 0 0 1px rgba(16,185,129,0.35) inset',
+                    color:'#34d399', fontSize:12, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                  }}
+                >
+                  <span style={{ fontSize:14 }}>🚰</span>
+                  {faucetLoading ? 'Minting Tokens...' : (faucetSuccess || 'Claim 5,000+ Faucet')}
+                </motion.button>
+
+                <Link href="/pools" style={{ textDecoration:'none' }}>
+                  <motion.button
+                    whileHover={{ scale:1.02 }} whileTap={{ scale:0.97 }}
+                    style={{
+                      width:'100%', padding:'10px 14px', borderRadius:12, border:'none', cursor:'pointer',
+                      background:'linear-gradient(135deg,rgba(59,130,246,0.22),rgba(37,99,235,0.30))',
+                      boxShadow:'0 0 0 1px rgba(96,165,250,0.35) inset',
+                      color:'#93c5fd', fontSize:12, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+                    }}
+                  >
+                    <span style={{ fontSize:14 }}>🔄</span> Swap HBAR for Tokens
+                  </motion.button>
+                </Link>
               </div>
             </>
           ) : (

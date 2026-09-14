@@ -40,6 +40,8 @@ from agents.hedera_rails import (
     get_hcs_messages,
     mint_kaibar,
     mint_conservation_nft,
+    swap_tokens,
+    mint_ecosystem_token,
     KAIBAR_TOKEN,
     CONNFT_TOKEN,
     AUDIT_TOPIC,
@@ -492,6 +494,42 @@ def get_amm_pools_and_vaults() -> dict:
     }
 
 
+@needle.tool
+def hedera_swap_tokens(
+    from_token: str,
+    to_token: str,
+    amount: float,
+    recipient: str = "0.0.5834216",
+) -> dict:
+    """
+    Swap native HBAR or any KAI ecosystem token (NVR, yBOB, YTOKEN, YGOLD, GAMI, CENTS, KBAR).
+    Call this when the user asks: 'swap HBAR for NVR', 'trade yBOB to HBAR', 'swap tokens', 'exchange HBAR'.
+    from_token: source token symbol (e.g. 'HBAR', 'yBOB', 'NVR', 'YTOKEN', 'YGOLD', 'GAMI', 'CENTS', 'KBAR')
+    to_token: target token symbol (e.g. 'NVR', 'yBOB', 'HBAR', 'YGOLD', 'YTOKEN', 'GAMI', 'CENTS', 'KBAR')
+    amount: positive number of source tokens to swap
+    recipient: Hedera account ID or EVM address receiving the swapped output. Default '0.0.5834216'
+    """
+    return _run(swap_tokens(from_token, to_token, amount, recipient))
+
+
+@needle.tool
+def mint_ecosystem_tokens(
+    token_symbol: str,
+    amount: float,
+    recipient_account_id: str = "0.0.5834216",
+    reason: str = "faucet_distribution",
+) -> dict:
+    """
+    Mint any KAI ecosystem token (NVR, yBOB, YTOKEN, YGOLD, GAMI, CENTS, KBAR) to a recipient account.
+    Call this when the user asks to: 'mint NVR', 'mint yBOB', 'give me test tokens', 'airdrop tokens', 'mint tokens'.
+    token_symbol: symbol of the token to mint ('NVR', 'yBOB', 'YTOKEN', 'YGOLD', 'GAMI', 'CENTS', 'KBAR')
+    amount: positive number of tokens to mint (max 50,000 per call)
+    recipient_account_id: Hedera account ID in format 0.0.XXXXXX. Default '0.0.5834216'
+    reason: short reason for minting
+    """
+    return _run(mint_ecosystem_token(token_symbol, recipient_account_id, amount, reason))
+
+
 # ── Harness class ─────────────────────────────────────────────────────────────
 
 # All tools registered with this harness
@@ -501,7 +539,9 @@ KAI_TOOLS = [
     hedera_transaction_history,
     hedera_hcs_audit_log,
     mint_kaibar_tokens,
+    mint_ecosystem_tokens,
     mint_conservation_nft_tool,
+    hedera_swap_tokens,
     x402_payment_info,
     x402_pay,
     x402_spend_status,
@@ -652,6 +692,12 @@ def _infer_tool_name(result: dict) -> str | None:
     # get_community_commodities
     if "total_commodities" in keys and "items" in keys:
         return "get_community_commodities"
+    # hedera_swap_tokens
+    if "fromToken" in keys and "toToken" in keys and "toAmount" in keys:
+        return "hedera_swap_tokens"
+    # mint_ecosystem_tokens
+    if "tokenId" in keys and "recipient" in keys and "amount" in keys and "status" in keys:
+        return "mint_ecosystem_tokens"
     # get_amm_pools_and_vaults
     if "amm_factory" in keys and "pools" in keys and "vaults" in keys:
         return "get_amm_pools_and_vaults"

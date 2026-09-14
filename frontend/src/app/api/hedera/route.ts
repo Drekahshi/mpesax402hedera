@@ -28,7 +28,9 @@ import {
   transferNft,
   associateToken,
   getTransactionReceipt,
+  mintHtsToken,
 } from '@/lib/hederaClient';
+import { HTS_TOKENS } from '@/lib/hederaTokens';
 import { logHcsEvent, type HcsEventType } from '@/lib/hcsAudit';
 
 // ── Shared response helpers ───────────────────────────────────────────────────
@@ -177,6 +179,41 @@ export async function POST(req: NextRequest) {
           totalSupply: mintReceipt.totalSupply?.toString(),
           explorerUrl: `https://hashscan.io/${process.env.HEDERA_NETWORK ?? 'testnet'}/transaction/${xferTxId}`,
         });
+      }
+
+      // ── Generic HTS Token mint + transfer (NVR, yBOB, YTOKEN, YGOLD, GAMI, CENTS, KBAR) ───
+      case 'mint-token': {
+        const { recipient, symbol, tokenId: passedTokenId, amount, decimals = 6, reason } = body as {
+          recipient: string; symbol?: string; tokenId?: string; amount: number; decimals?: number; reason?: string;
+        };
+        if (!recipient || !amount || amount <= 0) return err('recipient and positive amount required');
+
+        let targetTokenId = passedTokenId;
+        if (!targetTokenId && symbol) {
+          const symKey = symbol.toUpperCase() as keyof typeof HTS_TOKENS;
+          targetTokenId = HTS_TOKENS[symKey];
+        }
+
+        if (!targetTokenId) {
+          return err(`Token ID for symbol '${symbol}' not found`);
+        }
+
+        const PER_TX_CAP = 50_000;
+        if (amount > PER_TX_CAP) return err(`Per-tx cap exceeded: max ${PER_TX_CAP} tokens`);
+
+        const result = await mintHtsToken(targetTokenId, recipient, amount, decimals);
+
+        await logHcsEvent({
+          event: 'HTS_TOKEN_MINT' as HcsEventType,
+          tokenId: targetTokenId,
+          recipient,
+          amount,
+          reason: reason ?? `mint_${symbol || 'hts'}`,
+          txId: result.transactionId,
+          metadata: { symbol, decimals },
+        });
+
+        return ok(result);
       }
 
       // ── Conservation NFT mint + transfer ──────────────────────────────────

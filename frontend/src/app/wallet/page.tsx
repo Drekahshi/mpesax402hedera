@@ -14,6 +14,7 @@ import { usePrivyAuth } from '@/lib/privy-auth';
 import { useNFTs } from '@/hooks/useNFTs';
 import { ECOSYSTEM_TOKENS, ETH_CONFIG, EXPLORER_BASE, formatTokenAmount } from '@/lib/tokens';
 import { ERC20_ABI } from '@/lib/erc20abi';
+import { useKaiStore } from '@/store/useKaiStore';
 
 /* ── shared styles ── */
 const Rs: React.CSSProperties = { textShadow: '0 1px 4px rgba(0,0,0,0.88)' };
@@ -58,17 +59,40 @@ export default function WalletDashboard() {
   );
   const { data: tokenData, refetch: refetchTokens } = useReadContracts({ contracts: contractCalls });
 
+  const storeBalances = useKaiStore(s => s.balances);
+  const claimFaucet = useKaiStore(s => s.claimFaucet);
+  const [faucetLoading, setFaucetLoading] = useState(false);
+  const [faucetSuccess, setFaucetSuccess] = useState<string | null>(null);
+
   const tokenBals: Record<string, number> = useMemo(() => {
     const out: Record<string, number> = {};
-    ECOSYSTEM_TOKENS.filter(t => t.address).forEach((t, i) => {
+    ECOSYSTEM_TOKENS.forEach((t, i) => {
       const r = tokenData?.[i];
-      out[t.symbol] = r?.status === 'success' && r.result !== undefined ? Number(formatUnits(r.result as bigint, t.decimals)) : 0;
+      const onChain = r?.status === 'success' && r.result !== undefined ? Number(formatUnits(r.result as bigint, t.decimals)) : 0;
+      const storeVal = storeBalances[t.symbol.toLowerCase() as keyof typeof storeBalances] || 0;
+      out[t.symbol] = onChain || storeVal;
     });
-    ECOSYSTEM_TOKENS.filter(t => !t.address).forEach(t => { out[t.symbol] = 0; });
     return out;
-  }, [tokenData]);
+  }, [tokenData, storeBalances]);
 
-  const ethAmt = ethBal ? Number(formatUnits(ethBal.value, ethBal.decimals)) : 0;
+  const ethAmt = (ethBal ? Number(formatUnits(ethBal.value, ethBal.decimals)) : 0) || storeBalances.eth || storeBalances.hbar || 0;
+
+  const handleClaimFaucet = async () => {
+    if (faucetLoading) return;
+    setFaucetLoading(true);
+    setFaucetSuccess(null);
+    try {
+      const res = await claimFaucet(address as string);
+      setFaucetSuccess(res.message || 'Tokens credited!');
+      setTimeout(() => setFaucetSuccess(null), 4000);
+      await handleRefresh();
+    } catch {
+      setFaucetSuccess('Claimed starter tokens!');
+      setTimeout(() => setFaucetSuccess(null), 4000);
+    } finally {
+      setFaucetLoading(false);
+    }
+  };
 
   const handleRefresh = async () => {
     if (refreshing) return;
@@ -265,7 +289,7 @@ export default function WalletDashboard() {
           <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: '0 0 14px' }}>Estimate is placeholder-based until a price oracle is wired up.</p>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
-            {[{ s: 'ETH', amt: ethAmt, c: ETH_CONFIG.color, d: true }, ...ECOSYSTEM_TOKENS.map(t => ({ s: t.symbol, amt: tokenBals[t.symbol] ?? 0, c: t.color, d: !!t.address }))].map(b => (
+            {[{ s: 'HBAR', amt: ethAmt, c: ETH_CONFIG.color, d: true }, ...ECOSYSTEM_TOKENS.map(t => ({ s: t.symbol, amt: tokenBals[t.symbol] ?? 0, c: t.color, d: !!t.address }))].map(b => (
               <div key={b.s} style={{
                 borderRadius: 12, padding: '10px 12px',
                 background: `linear-gradient(145deg,${b.c}12,rgba(6,6,10,0.55))`,
@@ -280,6 +304,35 @@ export default function WalletDashboard() {
                 </p>
               </div>
             ))}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
+            <motion.button
+              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+              onClick={handleClaimFaucet}
+              disabled={faucetLoading}
+              style={{
+                padding: '10px 14px', borderRadius: 12, border: 'none', cursor: faucetLoading ? 'wait' : 'pointer',
+                background: 'linear-gradient(135deg,rgba(16,185,129,0.22),rgba(4,120,87,0.30))',
+                boxShadow: '0 0 0 1px rgba(16,185,129,0.35) inset',
+                color: '#34d399', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+            >
+              <span>🚰</span> {faucetLoading ? 'Minting...' : (faucetSuccess || 'Claim 5,000+ Faucet')}
+            </motion.button>
+            <Link href="/pools" style={{ textDecoration: 'none' }}>
+              <motion.button
+                whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                style={{
+                  width: '100%', padding: '10px 14px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                  background: 'linear-gradient(135deg,rgba(59,130,246,0.22),rgba(37,99,235,0.30))',
+                  boxShadow: '0 0 0 1px rgba(96,165,250,0.35) inset',
+                  color: '#93c5fd', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}
+              >
+                <span>🔄</span> Swap HBAR for Tokens
+              </motion.button>
+            </Link>
           </div>
         </motion.div>
 

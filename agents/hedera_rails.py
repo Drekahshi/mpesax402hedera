@@ -269,11 +269,56 @@ async def transfer_hbar(to_account: str, amount_hbar: float, memo: str = "") -> 
 
 async def associate_token(account_id: str, token_ids: list[str]) -> dict:
     """Associate HTS token(s) with an account so it can receive them."""
-    result = await _operator_post("/api/hedera/associate-token", {
-        "accountId": account_id,
-        "tokenIds":  token_ids,
+    result = await _operator_post("/api/hedera", {
+        "action":     "associate-token",
+        "accountId":  account_id,
+        "tokenIds":   token_ids,
     })
     return result
+
+
+async def swap_tokens(
+    from_token: str,
+    to_token: str,
+    amount: float,
+    recipient: str = "0.0.5834216",
+) -> dict:
+    """
+    Swap HBAR or any KAI ecosystem token (NVR, yBOB, YTOKEN, YGOLD, GAMI, CENTS, KBAR).
+    Calls the KAI Swap API router.
+    """
+    if amount <= 0:
+        raise ValueError("amount must be positive")
+    result = await _operator_post("/api/swap", {
+        "fromToken":  from_token,
+        "toToken":    to_token,
+        "fromAmount": amount,
+        "recipient":  recipient,
+    })
+    return result
+
+
+async def mint_ecosystem_token(
+    symbol: str,
+    recipient: str,
+    amount: float,
+    reason: str = "agent_incentive",
+) -> dict:
+    """
+    Mint any KAI ecosystem token (NVR, yBOB, YTOKEN, YGOLD, GAMI, CENTS, KBAR)
+    and transfer to the recipient on Hedera testnet.
+    """
+    if amount <= 0:
+        raise ValueError("amount must be positive")
+    result = await _operator_post("/api/hedera", {
+        "action":    "mint-token",
+        "symbol":    symbol.upper(),
+        "recipient": recipient,
+        "amount":    amount,
+        "reason":    reason,
+    })
+    return result
+
 
 
 # ── HCS audit log ─────────────────────────────────────────────────────────────

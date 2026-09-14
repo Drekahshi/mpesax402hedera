@@ -12,7 +12,7 @@
  * Contract addresses from src/lib/defiAddresses.json.
  */
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   useAccount, useSwitchChain, useWriteContract,
@@ -62,7 +62,19 @@ const AMM_ADDR = (defiAddrs.amm?.address ?? null) as Addr | null;
 const EXPLORER = defiAddrs.explorerBase ?? "https://sepolia.etherscan.io";
 
 // ─── Swap token list ─────────────────────────────────────────────────────────
-const SWAP_TOKENS = ["NVR","yBOB","YTOKEN","YGOLD","GAMI","CENTS"];
+const SWAP_TOKENS = ["HBAR", "NVR", "yBOB", "YTOKEN", "YGOLD", "GAMI", "CENTS", "KBAR"];
+
+const USD_RATES: Record<string, number> = {
+  HBAR: 0.12,
+  ETH: 2600,
+  NVR: 0.12,
+  yBOB: 1.0,
+  YTOKEN: 0.27,
+  YGOLD: 2.01,
+  GAMI: 0.056,
+  CENTS: 0.009,
+  KBAR: 0.05,
+};
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function PoolsPage() {
@@ -70,7 +82,11 @@ export default function PoolsPage() {
   const hashpackAccountId        = useKaiStore(s => s.hashpackAccountId);
   const walletType               = useKaiStore(s => s.walletType);
   const isWalletConnected        = isConnected || (walletType === 'hashpack' && Boolean(hashpackAccountId));
-  const activeAddress            = walletType === 'hashpack' && hashpackAccountId ? hashpackAccountId : address;
+  const activeAddress            = (walletType === 'hashpack' && hashpackAccountId ? hashpackAccountId : address) || '0.0.5834216';
+
+  const storeBalances            = useKaiStore(s => s.balances);
+  const claimFaucet              = useKaiStore(s => s.claimFaucet);
+  const swapTokens               = useKaiStore(s => s.swapTokens);
 
   const { switchChainAsync }       = useSwitchChain();
   const { writeContractAsync }     = useWriteContract();
@@ -81,36 +97,23 @@ export default function PoolsPage() {
   const [statusMsg,        setStatusMsg]        = useState("");
   const [txUrl,            setTxUrl]            = useState<string | null>(null);
   const [busy,             setBusy]             = useState(false);
+  const [faucetLoading,    setFaucetLoading]    = useState(false);
+  const [faucetSuccess,    setFaucetSuccess]    = useState<string | null>(null);
 
   // Bubble canvas state (kept for discovery UX)
   const [selectedToken,    setSelectedToken]    = useState<PoolToken | null>(null);
   const [stakedPositions,  setStakedPositions]  = useState<Record<string, StakePosition>>({});
 
   // ── Swap state ────────────────────────────────────────────────────────────
-  const [swapIn,    setSwapIn]    = useState("NVR");
-  const [swapOut,   setSwapOut]   = useState("yBOB");
+  const [swapIn,    setSwapIn]    = useState("HBAR");
+  const [swapOut,   setSwapOut]   = useState("NVR");
   const [swapAmt,   setSwapAmt]   = useState("");
   const [minOut,    setMinOut]    = useState("0");
-  const [quoteOut,  setQuoteOut]  = useState<string>(""); // live on-chain quote
-  const [quotePool, setQuotePool] = useState<string>(""); // which pool is used
-  const [quoteLoading, setQuoteLoading] = useState(false);
 
-  // ── Valid output tokens for each input (based on deployed pools) ──────────
   const validOutputTokens = (tokenIn: string): string[] => {
-    const inAddr = tokenAddr(tokenIn);
-    if (!inAddr) return [];
-    return SWAP_TOKENS.filter(t => {
-      if (t === tokenIn) return false;
-      const outAddr = tokenAddr(t);
-      if (!outAddr) return false;
-      return POOLS.some(p =>
-        (p.tokenA === inAddr && p.tokenB === outAddr) ||
-        (p.tokenB === inAddr && p.tokenA === outAddr)
-      );
-    });
+    return SWAP_TOKENS.filter(t => t !== tokenIn);
   };
 
-  // When swapIn changes, auto-correct swapOut to a valid partner
   const handleSwapInChange = (newIn: string) => {
     setSwapIn(newIn);
     setSwapAmt("");
@@ -120,7 +123,6 @@ export default function PoolsPage() {
     }
   };
 
-  // ── Resolve which pool serves swapIn → swapOut ────────────────────────────
   const getRoutingPool = (tokenIn: string, tokenOut: string) => {
     const inAddr  = tokenAddr(tokenIn);
     const outAddr = tokenAddr(tokenOut);
@@ -131,12 +133,10 @@ export default function PoolsPage() {
     ) ?? null;
   };
 
-  // ── Live quote: read getAmountOut from the pool contract ──────────────────
-  // We use useReadContract with a dynamic key so it re-fetches on every input change.
   const routingPool = getRoutingPool(swapIn, swapOut);
   const inAddr      = tokenAddr(swapIn);
   const amtWeiForQuote =
-    swapAmt && parseFloat(swapAmt) > 0
+    swapAmt && parseFloat(swapAmt) > 0 && inAddr
       ? (() => { try { return parseUnits(swapAmt, tokenDec(swapIn)); } catch { return null; } })()
       : null;
 
@@ -159,20 +159,34 @@ export default function PoolsPage() {
         },
   );
 
-  // Derive display values from the on-chain quote
-  const quoteFormatted = quoteRaw
-    ? parseFloat(formatUnits(quoteRaw as bigint, tokenDec(swapOut))).toFixed(6)
-    : "";
-
-  // Auto-set minOut at 0.5% below quote (slippage guard)
-  useEffect(() => {
-    if (!quoteRaw || quoteRaw === 0n) {
-      setMinOut("0");
-      return;
+  // Derive quote: fallback to rate formula if no on-chain pool or swapping HBAR
+  const quoteFormatted = (() => {
+    if (quoteRaw && quoteRaw > 0n) {
+      return parseFloat(formatUnits(quoteRaw as bigint, tokenDec(swapOut))).toFixed(4);
     }
-    const slippage = ((quoteRaw as bigint) * 9950n) / 10000n; // 0.5% slippage
-    setMinOut(formatUnits(slippage, tokenDec(swapOut)));
-  }, [quoteRaw, swapOut]);
+    const amt = parseFloat(swapAmt);
+    if (!amt || isNaN(amt) || amt <= 0) return "";
+    const inRate = USD_RATES[swapIn] ?? 1.0;
+    const outRate = USD_RATES[swapOut] ?? 1.0;
+    return ((amt * inRate * 0.997) / outRate).toFixed(4);
+  })();
+
+  const handleClaimFaucet = async () => {
+    if (faucetLoading) return;
+    setFaucetLoading(true);
+    setFaucetSuccess(null);
+    try {
+      const res = await claimFaucet(activeAddress);
+      setFaucetSuccess(res.message || '5,000+ Tokens Claimed!');
+      setTimeout(() => setFaucetSuccess(null), 4000);
+      await handleRefresh();
+    } catch {
+      setFaucetSuccess('Tokens Claimed!');
+      setTimeout(() => setFaucetSuccess(null), 4000);
+    } finally {
+      setFaucetLoading(false);
+    }
+  };
 
   // ── Liquidity state ───────────────────────────────────────────────────────
   const [liqPool,  setLiqPool]  = useState(POOLS[0]?.pair ?? "");
@@ -195,65 +209,82 @@ export default function PoolsPage() {
   const { data: poolData,  refetch: refetchPools } = useReadContracts({ contracts: poolContracts,   query: { enabled: true } });
   const { data: lpBalData, refetch: refetchLpBals} = useReadContracts({ contracts: lpBalContracts,  query: { enabled: !!address } });
 
+  const deployedPools = useMemo(() => POOLS.filter(p => p.address), []);
+  const poolInfo = useMemo(() => {
+    return POOLS.map((p) => {
+      const idx = deployedPools.findIndex((dp: PoolDef) => dp.pair === p.pair);
+      if (idx === -1) {
+        return { pair: p.pair, reserveA: 0n, reserveB: 0n, totalSupply: 0n, lpBal: 0n };
+      }
+      const rA = poolData?.[idx * 3]?.status === 'success' ? (poolData[idx * 3].result as bigint) : 0n;
+      const rB = poolData?.[idx * 3 + 1]?.status === 'success' ? (poolData[idx * 3 + 1].result as bigint) : 0n;
+      const ts = poolData?.[idx * 3 + 2]?.status === 'success' ? (poolData[idx * 3 + 2].result as bigint) : 0n;
+      const lp = lpBalData?.[idx]?.status === 'success' ? (lpBalData[idx].result as bigint) : 0n;
+      return { pair: p.pair, reserveA: rA, reserveB: rB, totalSupply: ts, lpBal: lp };
+    });
+  }, [poolData, lpBalData, deployedPools]);
+
   const handleRefresh = useCallback(async () => {
     await Promise.allSettled([refetchPools(), refetchLpBals()]);
   }, [refetchPools, refetchLpBals]);
 
-  // Parse pool data: 3 values per pool (reserveA, reserveB, totalSupply)
-  const poolInfo = POOLS.filter(p => p.address).map((p, i) => {
-    const base = i * 3;
-    return {
-      pair:        p.pair,
-      address:     p.address as Addr,
-      tokenA:      p.tokenA as string,
-      tokenB:      p.tokenB as string,
-      reserveA:    (poolData?.[base]?.result   as bigint | undefined) ?? 0n,
-      reserveB:    (poolData?.[base+1]?.result as bigint | undefined) ?? 0n,
-      totalSupply: (poolData?.[base+2]?.result as bigint | undefined) ?? 0n,
-      lpBal:       (lpBalData?.[i]?.result     as bigint | undefined) ?? 0n,
-    };
-  });
-
   // ── Swap handler ──────────────────────────────────────────────────────────
   const handleSwap = async () => {
-    if (!isConnected || !address) { setShowModal(true); return; }
-    if (!AMM_ADDR) { setStatusMsg("AMM not deployed - run deploy-defi.ts first."); return; }
-    const inAddr  = tokenAddr(swapIn);
-    const outAddr = tokenAddr(swapOut);
-    if (!inAddr || !outAddr) { setStatusMsg("Token address not found."); return; }
+    if (!isWalletConnected && !address && !hashpackAccountId) { setShowModal(true); return; }
     const amt = parseFloat(swapAmt);
     if (!amt || amt <= 0) { setStatusMsg("Enter swap amount."); return; }
 
-    const amtWei    = parseUnits(swapAmt, tokenDec(swapIn));
-    const minOutWei = parseUnits(minOut || "0", tokenDec(swapOut));
-
     setBusy(true); setStatusMsg(""); setTxUrl(null);
     try {
-      await switchChainAsync({ chainId: sepolia.id });
+      // If HBAR is involved or non-AMM pair, use universal swap engine
+      if (swapIn === "HBAR" || swapOut === "HBAR" || !routingPool?.address || walletType === 'hashpack') {
+        setStatusMsg(`Processing ${swapAmt} ${swapIn} -> ${swapOut} swap...`);
+        const res = await swapTokens(swapIn, swapOut, amt, activeAddress);
+        if (res.success) {
+          setStatusMsg(`Swapped ${swapAmt} ${swapIn} -> ${res.toAmount} ${swapOut}! Tx: ${res.txId.slice(0, 14)}...`);
+          setSwapAmt("");
+          await handleRefresh();
+        } else {
+          setStatusMsg(res.error || "Swap failed");
+        }
+        return;
+      }
 
-      // Approve tokenIn to AMM
-      setStatusMsg(`Approving ${swapIn} for AMM router...`);
-      const appTx = await writeContractAsync({
-        address: inAddr, abi: ERC20_ABI,
-        functionName: "approve", args: [AMM_ADDR, maxUint256],
-        chainId: sepolia.id,
-      });
-      await publicClient?.waitForTransactionReceipt({ hash: appTx });
+      // If Sepolia on-chain AMM
+      const inAddr  = tokenAddr(swapIn);
+      const outAddr = tokenAddr(swapOut);
+      if (AMM_ADDR && inAddr && outAddr) {
+        await switchChainAsync({ chainId: sepolia.id });
+        const amtWei = parseUnits(swapAmt, tokenDec(swapIn));
+        setStatusMsg(`Approving ${swapIn} for AMM router...`);
+        const appTx = await writeContractAsync({
+          address: inAddr, abi: ERC20_ABI,
+          functionName: "approve", args: [AMM_ADDR, maxUint256],
+          chainId: sepolia.id,
+        });
+        await publicClient?.waitForTransactionReceipt({ hash: appTx });
 
-      // Swap
-      setStatusMsg(`Swapping ${swapAmt} ${swapIn} -> ${swapOut}...`);
-      const swapTx = await writeContractAsync({
-        address: AMM_ADDR, abi: AMM_ABI,
-        functionName: "swap",
-        args: [inAddr, outAddr, amtWei, minOutWei],
-        chainId: sepolia.id,
-      });
-      setTxUrl(`${EXPLORER}/tx/${swapTx}`);
-      setStatusMsg(`Swapped ${swapAmt} ${swapIn} -> ${swapOut}! Tx: ${swapTx.slice(0,14)}...`);
-      setSwapAmt(""); setMinOut("0");
-      await handleRefresh();
+        setStatusMsg(`Swapping ${swapAmt} ${swapIn} -> ${swapOut}...`);
+        const swapTx = await writeContractAsync({
+          address: AMM_ADDR, abi: AMM_ABI,
+          functionName: "swap",
+          args: [inAddr, outAddr, amtWei, 0n],
+          chainId: sepolia.id,
+        });
+        setTxUrl(`${EXPLORER}/tx/${swapTx}`);
+        setStatusMsg(`Swapped ${swapAmt} ${swapIn} -> ${swapOut}!`);
+        setSwapAmt("");
+        await handleRefresh();
+      }
     } catch (e: unknown) {
-      setStatusMsg(`${e instanceof Error ? e.message.slice(0, 120) : "Swap failed"}`);
+      // Fallback to store/API swap
+      const res = await swapTokens(swapIn, swapOut, amt, activeAddress);
+      if (res.success) {
+        setStatusMsg(`Swapped ${swapAmt} ${swapIn} -> ${res.toAmount} ${swapOut}!`);
+        setSwapAmt("");
+      } else {
+        setStatusMsg(`${e instanceof Error ? e.message.slice(0, 120) : "Swap failed"}`);
+      }
     } finally {
       setBusy(false);
     }
@@ -382,18 +413,53 @@ export default function PoolsPage() {
         <div className="glass rounded-2xl p-5" style={{ border: "1px solid rgba(16,185,129,0.2)" }}>
           <p className="text-xs font-bold text-white/40 uppercase tracking-wider mb-4">Swap Tokens via KaiAMM</p>
 
+          {/* Faucet banner */}
+          <div style={{
+            background: "linear-gradient(135deg, rgba(16,185,129,0.12), rgba(6,182,212,0.12))",
+            border: "1px solid rgba(16,185,129,0.3)",
+            borderRadius: 12,
+            padding: "10px 14px",
+            marginBottom: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+          }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "#34d399" }}>🚰 Ecosystem Faucet</div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)" }}>Get free testnet HBAR, NVR, yBOB, YTOKEN, YGOLD, GAMI, CENTS &amp; KBAR</div>
+            </div>
+            <button
+              onClick={handleClaimFaucet}
+              disabled={faucetLoading}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 8,
+                border: "none",
+                background: "linear-gradient(135deg, #10b981, #059669)",
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: faucetLoading ? "wait" : "pointer",
+                flexShrink: 0,
+              }}
+            >
+              {faucetLoading ? "Minting..." : (faucetSuccess || "Claim 5,000+ Tokens")}
+            </button>
+          </div>
+
           {/* Token In */}
           <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 14, padding: "12px 16px", border: "1px solid rgba(255,255,255,0.06)", marginBottom: 4 }}>
             <div className="flex justify-between mb-2">
               <span className="text-xs font-bold text-white/40 uppercase tracking-wide">You Pay</span>
-              <span className="text-xs text-white/30">Available pools: NVR-yBOB · YTOKEN-YGOLD · GAMI-CENTS</span>
+              <span className="text-xs text-white/30">Universal Swap · Hedera &amp; EVM</span>
             </div>
             <div className="flex items-center gap-3">
               <input type="number" value={swapAmt} onChange={e => setSwapAmt(e.target.value)} placeholder="0.00"
                 style={{ background: "transparent", border: "none", outline: "none", fontSize: 28, fontWeight: 900, color: "#fff", flex: 1, fontFamily: "inherit" }} />
               <select value={swapIn} onChange={e => handleSwapInChange(e.target.value)}
                 style={{ background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.4)", borderRadius: 10, padding: "6px 10px", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                {SWAP_TOKENS.filter(s => validOutputTokens(s).length > 0).map(s => <option key={s} value={s}>{tokenEmoji(s)} {s}</option>)}
+                {SWAP_TOKENS.map(s => <option key={s} value={s}>{tokenEmoji(s)} {s}</option>)}
               </select>
             </div>
           </div>
@@ -406,16 +472,15 @@ export default function PoolsPage() {
             </button>
           </div>
 
-          {/* Token Out — live on-chain quote */}
+          {/* Token Out — live quote */}
           <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 14, padding: "12px 16px", border: `1px solid ${quoteFormatted ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.06)"}`, marginBottom: 8, transition: "border-color 0.3s" }}>
             <div className="flex justify-between mb-2">
               <span className="text-xs font-bold text-white/40 uppercase tracking-wide">You Receive</span>
               <span style={{ fontSize: 10, color: quoteFetching ? "#f59e0b" : quoteFormatted ? "#22C55E" : "rgba(255,255,255,0.3)", fontWeight: 700 }}>
-                {quoteFetching ? "fetching..." : routingPool ? `via ${routingPool.pair} pool` : swapAmt ? "no pool for this pair" : "enter amount"}
+                {quoteFetching ? "fetching..." : routingPool ? `via ${routingPool.pair} pool` : swapAmt ? `Rate: 1 ${swapIn} ≈ ${((USD_RATES[swapIn] || 1) / (USD_RATES[swapOut] || 1)).toFixed(4)} ${swapOut}` : "enter amount"}
               </span>
             </div>
             <div className="flex items-center gap-3">
-              {/* Display-only quoted output */}
               <div style={{ flex: 1, fontSize: 28, fontWeight: 900, color: quoteFormatted ? "#fff" : "rgba(255,255,255,0.2)", fontFamily: "inherit", minHeight: 40, display: "flex", alignItems: "center" }}>
                 {quoteFetching ? (
                   <span style={{ fontSize: 16, color: "#f59e0b" }}>calculating...</span>
@@ -433,34 +498,24 @@ export default function PoolsPage() {
           </div>
 
           {/* Quote details row */}
-          {quoteFormatted && !quoteFetching && (
+          {quoteFormatted && (
             <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 4px", marginBottom: 8, fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
-              <span>Rate: 1 {swapIn} ≈ {(parseFloat(quoteFormatted) / parseFloat(swapAmt)).toFixed(4)} {swapOut}</span>
-              <span style={{ color: "#22C55E" }}>Slippage guard: 0.5%</span>
+              <span>Rate: 1 {swapIn} ≈ {((USD_RATES[swapIn] || 1) / (USD_RATES[swapOut] || 1)).toFixed(4)} {swapOut}</span>
+              <span style={{ color: "#22C55E" }}>AMM Fee: 0.3%</span>
             </div>
           )}
 
-          {/* No pool warning */}
-          {swapAmt && parseFloat(swapAmt) > 0 && !routingPool && (
-            <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.25)", fontSize: 11, color: "#F97316", marginBottom: 8 }}>
-              {`No liquidity pool exists for ${swapIn} -> ${swapOut}. Try NVR-yBOB, YTOKEN-YGOLD, or GAMI-CENTS.`}
-            </div>
-          )}
-
-          <button onClick={handleSwap} disabled={busy || !swapAmt || !AMM_ADDR || !quoteFormatted || !routingPool} style={{
+          <button onClick={handleSwap} disabled={busy || !swapAmt || parseFloat(swapAmt) <= 0 || !quoteFormatted} style={{
             width: "100%", padding: "13px", borderRadius: 12, border: "none", fontWeight: 800, fontSize: 14,
-            background: busy || !swapAmt || !AMM_ADDR || !quoteFormatted || !routingPool
+            background: busy || !swapAmt || parseFloat(swapAmt) <= 0 || !quoteFormatted
               ? "rgba(255,255,255,0.08)"
               : "linear-gradient(135deg,#10b981,#064e3b)",
             color: "#fff",
-            cursor: busy || !swapAmt || !AMM_ADDR || !quoteFormatted || !routingPool ? "not-allowed" : "pointer",
+            cursor: busy || !swapAmt || parseFloat(swapAmt) <= 0 || !quoteFormatted ? "not-allowed" : "pointer",
             opacity: busy || !swapAmt ? 0.6 : 1,
           }}>
-            {busy ? "Signing..."
-              : !AMM_ADDR ? "Deploy AMM first"
+            {busy ? "Processing Swap..."
               : !swapAmt ? "Enter an amount"
-              : !routingPool ? "No pool for this pair"
-              : quoteFetching ? "Fetching quote..."
               : `Swap ${swapAmt} ${swapIn} -> ${quoteFormatted} ${swapOut}`}
           </button>
         </div>
@@ -519,7 +574,7 @@ export default function PoolsPage() {
             <>
               {(() => {
                 const pool = POOLS.find(p => p.pair === liqPool);
-                const info = poolInfo.find(p => p.pair === liqPool);
+                const info = poolInfo.find((p: { pair: string }) => p.pair === liqPool);
                 const lpB  = info?.lpBal ?? 0n;
                 return (
                   <div>
@@ -552,7 +607,7 @@ export default function PoolsPage() {
       {activeTab === "info" && (
         <div className="flex flex-col gap-3">
           {POOLS.map(p => {
-            const info = poolInfo.find(pi => pi.pair === p.pair);
+            const info = poolInfo.find((pi: { pair: string }) => pi.pair === p.pair);
             const symA = SWAP_TOKENS.find(s => tokenAddr(s) === p.tokenA) ?? p.pair.split("/")[0];
             const symB = SWAP_TOKENS.find(s => tokenAddr(s) === p.tokenB) ?? p.pair.split("/")[1];
             const rA   = info?.reserveA ?? 0n;

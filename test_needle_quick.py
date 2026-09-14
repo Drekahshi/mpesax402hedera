@@ -1,5 +1,7 @@
-"""Quick Needle routing test — runs 7 queries, checks tool + result."""
+"""Quick Needle routing test — runs 9 queries, checks tool + result."""
 import os, sys
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8")
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -21,6 +23,8 @@ TESTS = [
     (f"How much KBAR does account {OPERATOR} have?",                 "hedera_kaibar_balance",     "token_id"),
     (f"Show me the latest HCS audit log entries",                    "hedera_hcs_audit_log",      "messages"),
     (f"Show recent transaction history for account {OPERATOR}",      "hedera_transaction_history","transactions"),
+    (f"Swap 25 HBAR for NVR tokens to account {OPERATOR}",           "hedera_swap_tokens",        "fromToken"),
+    (f"Mint 500 NVR tokens to account {OPERATOR}",                   "mint_ecosystem_tokens",     "recipient"),
 ]
 
 passed = 0

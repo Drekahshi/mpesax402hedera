@@ -663,7 +663,7 @@ export default function SecuritiesPage() {
                           {/* Fee notice */}
                           <p style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", margin: "0 0 8px" }}>
                             <Shield size={10} style={{ display: "inline", marginRight: 4, verticalAlign: "middle" }} />
-                            {FEE_ETH} ETH policy fee + ERC-20 transfer - both on Sepolia Etherscan
+                            {FEE_HBAR} HBAR policy fee + ERC-20 transfer - both on Sepolia Etherscan
                           </p>
 
                           <div style={{ display: "flex", gap: 8 }}>

@@ -22,6 +22,7 @@ import {
   AccountBalanceQuery,
   TransferTransaction,
   TokenAssociateTransaction,
+  TokenMintTransaction,
   TokenId,
   NftId,
   TransactionId,
@@ -237,6 +238,62 @@ export async function transferNft(
     status: receipt.status.toString(),
     transactionId: txId,
     explorerUrl: _explorerTxUrl(txId),
+  };
+}
+
+// ── HTS Token Minting ─────────────────────────────────────────────────────────
+
+export interface MintResult extends TransferResult {
+  amount: number;
+  recipient: string;
+  tokenId: string;
+  totalSupply?: string;
+}
+
+/**
+ * Mint HTS fungible tokens to treasury and immediately transfer them to the recipient.
+ * amount is in human-readable token units (e.g. 500 for 500 tokens).
+ */
+export async function mintHtsToken(
+  tokenIdStr: string,
+  toAccountIdStr: string,
+  amount: number,
+  decimals: number = 6,
+): Promise<MintResult> {
+  const client = getHederaClient();
+  if (!client) throw new Error('[Hedera] Client not initialised');
+
+  const operatorIdStr = process.env.HEDERA_OPERATOR_ID!;
+  const tokenId       = TokenId.fromString(tokenIdStr);
+  const operatorId    = AccountId.fromString(operatorIdStr);
+  const recipientId   = AccountId.fromString(toAccountIdStr);
+  const rawAmount     = Math.round(amount * Math.pow(10, decimals));
+
+  // 1. Mint tokens to treasury (operator)
+  const mintTx = await new TokenMintTransaction()
+    .setTokenId(tokenId)
+    .setAmount(rawAmount)
+    .setMaxTransactionFee(new Hbar(5))
+    .execute(client);
+  const mintReceipt = await mintTx.getReceipt(client);
+
+  // 2. Transfer from treasury (operator) to recipient
+  const transferTx = await new TransferTransaction()
+    .addTokenTransfer(tokenId, operatorId,  -rawAmount)
+    .addTokenTransfer(tokenId, recipientId,  rawAmount)
+    .setMaxTransactionFee(new Hbar(5))
+    .execute(client);
+  const transferReceipt = await transferTx.getReceipt(client);
+  const txId = transferTx.transactionId.toString();
+
+  return {
+    status: transferReceipt.status.toString(),
+    transactionId: txId,
+    explorerUrl: _explorerTxUrl(txId),
+    amount,
+    recipient: toAccountIdStr,
+    tokenId: tokenIdStr,
+    totalSupply: mintReceipt.totalSupply?.toString(),
   };
 }
 

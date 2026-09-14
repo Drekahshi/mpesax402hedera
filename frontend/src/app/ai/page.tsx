@@ -98,6 +98,8 @@ const TOOLS = [
     needle: true,
     items: [
       { label: 'HBAR balance (live)',        q: 'Get the HBAR balance and all token holdings for account 0.0.5834216' },
+      { label: 'Swap HBAR for NVR',          q: 'Swap 50 HBAR for NVR tokens to account 0.0.5834216' },
+      { label: 'Mint NVR tokens',            q: 'Mint 1000 NVR tokens to account 0.0.5834216' },
       { label: 'KAIBAR balance',             q: 'What is the KAIBAR balance for account 0.0.5834216?' },
       { label: 'Recent transactions',        q: 'Show the last 10 transactions for account 0.0.5834216' },
       { label: 'HCS audit log',              q: 'Show the latest HCS audit log entries from the conservation topic' },
