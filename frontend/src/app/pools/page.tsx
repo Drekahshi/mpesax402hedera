@@ -21,6 +21,7 @@ import {
 import { sepolia } from "wagmi/chains";
 import { parseUnits, formatUnits, maxUint256 } from "viem";
 import { Activity, ArrowDownUp, Droplets, BarChart3, ExternalLink, RefreshCw, ArrowLeft } from "lucide-react";
+import { useKaiStore } from "@/store/useKaiStore";
 import WalletConnectModal from "@/components/WalletConnectModal";
 import CryptoBubblesCanvas, { KAI_TOKENS } from "@/components/pools/CryptoBubblesCanvas";
 import type { PoolToken } from "@/components/pools/CryptoBubblesCanvas";
@@ -66,6 +67,11 @@ const SWAP_TOKENS = ["NVR","yBOB","YTOKEN","YGOLD","GAMI","CENTS"];
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function PoolsPage() {
   const { address, isConnected }  = useAccount();
+  const hashpackAccountId        = useKaiStore(s => s.hashpackAccountId);
+  const walletType               = useKaiStore(s => s.walletType);
+  const isWalletConnected        = isConnected || (walletType === 'hashpack' && Boolean(hashpackAccountId));
+  const activeAddress            = walletType === 'hashpack' && hashpackAccountId ? hashpackAccountId : address;
+
   const { switchChainAsync }       = useSwitchChain();
   const { writeContractAsync }     = useWriteContract();
   const publicClient               = usePublicClient();
@@ -335,7 +341,7 @@ export default function PoolsPage() {
         </Link>
         <div className="flex-1">
           <h1 className="text-2xl font-black text-white m-0">KAI Pools & AMM</h1>
-          <p className="text-xs text-white/45 mt-0.5">x*y=k AMM · Real ERC-20 swaps · Sepolia EVM</p>
+          <p className="text-xs text-white/45 mt-0.5">x*y=k AMM · Real Token Swaps &amp; Liquidity</p>
         </div>
         <button onClick={handleRefresh} className="p-2 rounded-lg border border-white/10 bg-white/5 cursor-pointer">
           <RefreshCw size={15} color="#10b981" />

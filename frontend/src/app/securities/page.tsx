@@ -206,11 +206,17 @@ function ClockIcon({ size, color }: { size: number; color: string }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function SecuritiesPage() {
   const { address, isConnected } = useAccount();
+  const hashpackAccountId        = useKaiStore(s => s.hashpackAccountId);
+  const walletType               = useKaiStore(s => s.walletType);
+  const storeBalances            = useKaiStore(s => s.balances);
+  const isWalletConnected        = isConnected || (walletType === 'hashpack' && Boolean(hashpackAccountId));
+  const activeAddress            = walletType === 'hashpack' && hashpackAccountId ? hashpackAccountId : address;
+
   const { sendTransactionAsync } = useSendTransaction();
   const { switchChainAsync }     = useSwitchChain();
   const { writeContractAsync }   = useWriteContract();
   const {
-    isConnected: walletConnected, tokenBalances, holdings, loading: balancesLoading, refresh: refreshBalances,
+    tokenBalances, holdings, loading: balancesLoading, refresh: refreshBalances,
   } = useEcosystemBalances();
 
   const [showModal,    setShowModal]   = useState(false);
@@ -240,8 +246,11 @@ export default function SecuritiesPage() {
   const getToken = (sym: string) =>
     ECOSYSTEM_TOKENS.find(t => t.symbol === sym);
 
-  const walletBalance = (sym: string): number =>
-    tokenBalances[sym] ?? 0;
+  const walletBalance = (sym: string): number => {
+    if (tokenBalances[sym] !== undefined && tokenBalances[sym] > 0) return tokenBalances[sym];
+    const key = sym.toLowerCase() as keyof typeof storeBalances;
+    return (storeBalances && storeBalances[key]) ? Number(storeBalances[key]) : 0;
+  };
 
   const handleRefresh = async () => {
     if (refreshing) return;
@@ -376,7 +385,7 @@ export default function SecuritiesPage() {
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: 0 }}>Securities &amp; Insurance</h1>
             <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "3px 0 0" }}>
-              Real ERC-20 deposits · Condition-based release · Sepolia EVM
+              Real Token deposits · Condition-based release · Hedera &amp; EVM
             </p>
           </div>
         </div>
@@ -397,13 +406,13 @@ export default function SecuritiesPage() {
       </div>
 
       {/* Wallet banner */}
-      {!isConnected && (
+      {!isWalletConnected && (
         <button onClick={() => setShowModal(true)} style={{
           background: "rgba(232,65,66,0.08)", border: "1px dashed rgba(232,65,66,0.4)",
           borderRadius: 14, padding: "14px 16px", color: "#e84142", fontWeight: 700,
           fontSize: 13, cursor: "pointer", textAlign: "center",
         }}>
-           Connect wallet to deposit tokens on Sepolia
+          Connect HashPack / MetaMask to deposit tokens
         </button>
       )}
 
