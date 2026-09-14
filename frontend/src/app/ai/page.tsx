@@ -440,19 +440,6 @@ export default function AIPage() {
           <Cpu size={11} /> Needle
         </button>
 
-        {/* RAG toggle — hidden in needle mode */}
-        {!needleMode && (
-          <button onClick={() => setRag(v => !v)} style={{
-            display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
-            background: rag ? 'rgba(16,185,129,0.14)' : 'rgba(255,255,255,0.04)',
-            border: `1px solid ${rag ? 'rgba(16,185,129,0.38)' : 'rgba(255,255,255,0.08)'}`,
-            color: rag ? '#ff6b6b' : 'rgba(255,255,255,0.35)', fontSize: 10, fontWeight: 800, flexShrink: 0,
-            transition: 'all 0.18s',
-          }}>
-            <Database size={11} /> RAG {rag ? 'ON' : 'OFF'}
-          </button>
-        )}
-
         {/* Health refresh */}
         <button onClick={checkHealth} style={{
           width: 32, height: 32, borderRadius: 8, flexShrink: 0, cursor: 'pointer',

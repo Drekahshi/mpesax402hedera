@@ -1,6 +1,6 @@
-﻿'use client';
+'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAccount, useBalance, useReadContracts } from 'wagmi';
@@ -10,6 +10,12 @@ import WalletConnectModal from '@/components/WalletConnectModal';
 import { ECOSYSTEM_TOKENS, TICKER_TOKENS } from '@/lib/tokens';
 import { ERC20_ABI } from '@/lib/erc20abi';
 import { formatChat } from '@/lib/formatChat';
+import {
+  subscribeHashPackState,
+  getHashPackState,
+  type HashPackState,
+} from '@/lib/hashconnectClient';
+import { getHtsPortfolio } from '@/lib/hederaTokens';
 import {
   Trees, Store, Users, FlaskConical, ScanLine,
   Droplets, ImageIcon, Lock, Globe, LayoutGrid, Gift,
@@ -22,8 +28,7 @@ import {
 const R:  React.CSSProperties = { textShadow: '0 1px 6px rgba(0,0,0,0.90)' };
 const Rs: React.CSSProperties = { textShadow: '0 1px 4px rgba(0,0,0,0.88)' };
 
-/* Colour is reserved for the brand name, the portfolio value, and active/live status —
-   everything else reads as plain, professional white/gray text. */
+/* Colour is reserved for the brand name, the portfolio value, and active/live status */
 const HL = {
   green: { color: '#34d399', fontWeight: 700 } as React.CSSProperties,
 };
@@ -58,20 +63,22 @@ function buildCalls(addr: `0x${string}` | undefined) {
 }
 
 const TOKEN_ICON: Record<string, React.ComponentType<{ size:number; color:string; strokeWidth:number }>> = {
-  ETH: Activity, NVR: Zap, yBOB: CircleDollarSign,
-  YTOKEN: TrendingUp, YGOLD: BarChart3, GAMI: Coins, CENTS: CircleDollarSign,
+  HBAR: Activity, ETH: Activity, NVR: Zap, yBOB: CircleDollarSign,
+  YTOKEN: TrendingUp, YGOLD: BarChart3, GAMI: Coins, CENTS: CircleDollarSign, KBAR: Coins,
 };
 
-/* No price oracle is wired up yet — these are manually maintained estimates,
-   not a live feed. Keep the UI label ("Est. Portfolio Value") honest about that. */
 const ESTIMATED_USD_RATES: Record<string, number> = {
-  eth: 26, ybob: 1, nvr: 0.12, ygold: 2.01, ytoken: 0.27, gami: 0.056, cents: 0.009,
+  hbar: 0.12, eth: 26, ybob: 1, nvr: 0.12, ygold: 2.01, ytoken: 0.27, gami: 0.056, cents: 0.009, kbar: 0.05,
 };
 
 export default function Home() {
   const { address, isConnected } = useAccount();
   const { data: ethBal, refetch: refetchNative } = useBalance({ address });
   const { connectWallet, disconnectWallet, setNativeBalance, setAllBalances } = useKaiStore();
+
+  const [hashPackState, setHashPackState] = useState<HashPackState>(getHashPackState());
+  const [htsBals, setHtsBals]             = useState<Record<string, number>>({});
+  const [htsHbar, setHtsHbar]             = useState<number>(0);
 
   const [showModal,  setShowModal]  = useState(false);
   const [tickerOff,  setTickerOff]  = useState(0);
@@ -83,26 +90,68 @@ export default function Home() {
   const [profile,    setProfile]    = useState<{ name?: string; displayName?: string } | null>(null);
   const agentRef = useRef<HTMLTextAreaElement>(null);
 
+  // Subscribe to HashPack session
   useEffect(() => {
-    isConnected && address ? connectWallet('metamask', address) : disconnectWallet();
-  }, [isConnected, address]);
+    const unsub = subscribeHashPackState(setHashPackState);
+    return unsub;
+  }, []);
+
+  const hashPackAccountId = hashPackState.session?.accountIds?.[0];
+
+  // Fetch HashPack token balances from Hedera Mirror Node
+  const fetchHashPackBalances = useCallback(async (accId: string) => {
+    try {
+      const p = await getHtsPortfolio(accId);
+      setHtsHbar(p.hbar);
+      const map: Record<string, number> = {};
+      p.tokens.forEach(t => {
+        map[t.symbol.toLowerCase()] = t.balance;
+      });
+      setHtsBals(map);
+      setNativeBalance(p.hbar);
+      setAllBalances({
+        nvr: map.nvr ?? 0,
+        ybob: map.ybob ?? 0,
+        ytoken: map.ytoken ?? 0,
+        ygold: map.ygold ?? 0,
+        gami: map.gami ?? 0,
+        cents: map.cents ?? 0,
+      });
+    } catch (err) {
+      console.error('[HashPack Portfolio]', err);
+    }
+  }, [setNativeBalance, setAllBalances]);
 
   useEffect(() => {
-    if (!address) { setProfile(null); return; }
-    fetch(`/api/profile?wallet=${address}`)
+    if (hashPackState.connected && hashPackAccountId) {
+      connectWallet('hashpack' as any, hashPackAccountId);
+      fetchHashPackBalances(hashPackAccountId);
+    } else if (isConnected && address) {
+      connectWallet('metamask', address);
+    } else {
+      disconnectWallet();
+    }
+  }, [hashPackState.connected, hashPackAccountId, isConnected, address, connectWallet, disconnectWallet, fetchHashPackBalances]);
+
+  useEffect(() => {
+    const activeAddr = address || hashPackAccountId;
+    if (!activeAddr) { setProfile(null); return; }
+    fetch(`/api/profile?wallet=${activeAddr}`)
       .then(r => r.json())
       .then(d => setProfile(d.profile ?? null))
       .catch(() => setProfile(null));
-  }, [address]);
+  }, [address, hashPackAccountId]);
 
   useEffect(() => {
-    if (ethBal) setNativeBalance(Number(formatUnits(ethBal.value, ethBal.decimals)));
-  }, [ethBal]);
+    if (ethBal && !hashPackState.connected) {
+      setNativeBalance(Number(formatUnits(ethBal.value, ethBal.decimals)));
+    }
+  }, [ethBal, hashPackState.connected, setNativeBalance]);
 
   const contractCalls = buildCalls(address);
   const { data: tokenData, refetch: refetchTokens } = useReadContracts({ contracts: contractCalls });
 
-  const tokenBals: Record<string,number> = (() => {
+  const evmTokenBals: Record<string,number> = (() => {
     const out: Record<string,number> = {};
     ECOSYSTEM_TOKENS.filter(t => t.address).forEach((t,i) => {
       const r = tokenData?.[i];
@@ -114,13 +163,24 @@ export default function Home() {
   })();
 
   useEffect(() => {
-    if (isConnected)
-      setAllBalances({ nvr:tokenBals.nvr??0, ybob:tokenBals.ybob??0, ytoken:tokenBals.ytoken??0, ygold:tokenBals.ygold??0, gami:tokenBals.gami??0, cents:tokenBals.cents??0 });
-  }, [JSON.stringify(tokenBals), isConnected]);
+    if (isConnected && !hashPackState.connected) {
+      setAllBalances({
+        nvr: evmTokenBals.nvr ?? 0,
+        ybob: evmTokenBals.ybob ?? 0,
+        ytoken: evmTokenBals.ytoken ?? 0,
+        ygold: evmTokenBals.ygold ?? 0,
+        gami: evmTokenBals.gami ?? 0,
+        cents: evmTokenBals.cents ?? 0,
+      });
+    }
+  }, [JSON.stringify(evmTokenBals), isConnected, hashPackState.connected, setAllBalances]);
 
   const handleRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
+    if (hashPackState.connected && hashPackAccountId) {
+      await fetchHashPackBalances(hashPackAccountId);
+    }
     await Promise.allSettled([refetchNative(), refetchTokens()]);
     setRefreshing(false);
   };
@@ -130,40 +190,61 @@ export default function Home() {
     return () => clearInterval(id);
   }, []);
 
+  const isWalletConnected = isConnected || hashPackState.connected;
+  const activeAddress = hashPackState.connected ? hashPackAccountId : address;
+  const isHashPack = hashPackState.connected;
+
   const copyAddress = () => {
-    if (!address) return;
-    navigator.clipboard.writeText(address);
+    if (!activeAddress) return;
+    navigator.clipboard.writeText(activeAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   };
 
   const ethAmt = ethBal ? Number(formatUnits(ethBal.value, ethBal.decimals)) : 0;
+  const nativeAmt = isHashPack ? htsHbar : ethAmt;
+  const nativeSymbol = isHashPack ? 'HBAR' : 'ETH';
+  const effectiveTokenBals = isHashPack ? htsBals : evmTokenBals;
+
   const allTokens = [
-    { symbol:'ETH', value:ethAmt, color:'#10b981', deployed:true },
-    ...ECOSYSTEM_TOKENS.map(t => ({ symbol:t.symbol, value:tokenBals[t.symbol.toLowerCase()]??0, color:t.color, deployed:!!t.address })),
+    { symbol: nativeSymbol, value: nativeAmt, color: '#10b981', deployed: true },
+    ...ECOSYSTEM_TOKENS.map(t => ({
+      symbol: t.symbol,
+      value: effectiveTokenBals[t.symbol.toLowerCase()] ?? 0,
+      color: t.color,
+      deployed: isHashPack ? !!t.htsTokenId : !!t.address,
+    })),
   ];
-  const totalUsd = ethAmt*ESTIMATED_USD_RATES.eth
-    + (tokenBals.ybob??0)*ESTIMATED_USD_RATES.ybob
-    + (tokenBals.nvr??0)*ESTIMATED_USD_RATES.nvr
-    + (tokenBals.ygold??0)*ESTIMATED_USD_RATES.ygold
-    + (tokenBals.ytoken??0)*ESTIMATED_USD_RATES.ytoken
-    + (tokenBals.gami??0)*ESTIMATED_USD_RATES.gami
-    + (tokenBals.cents??0)*ESTIMATED_USD_RATES.cents;
+
+  const nativeRate = isHashPack ? ESTIMATED_USD_RATES.hbar : ESTIMATED_USD_RATES.eth;
+  const totalUsd = nativeAmt * nativeRate
+    + (effectiveTokenBals.ybob ?? 0) * ESTIMATED_USD_RATES.ybob
+    + (effectiveTokenBals.nvr ?? 0) * ESTIMATED_USD_RATES.nvr
+    + (effectiveTokenBals.ygold ?? 0) * ESTIMATED_USD_RATES.ygold
+    + (effectiveTokenBals.ytoken ?? 0) * ESTIMATED_USD_RATES.ytoken
+    + (effectiveTokenBals.gami ?? 0) * ESTIMATED_USD_RATES.gami
+    + (effectiveTokenBals.cents ?? 0) * ESTIMATED_USD_RATES.cents
+    + (effectiveTokenBals.kbar ?? 0) * ESTIMATED_USD_RATES.kbar;
+
   const activeTokenCount = allTokens.filter(b => b.value > 0).length;
-  const displayName = profile?.displayName || profile?.name || (address ? `${address.slice(0,6)}…${address.slice(-4)}` : '');
+  const displayName = profile?.displayName || profile?.name || (activeAddress ? (isHashPack ? activeAddress : `${activeAddress.slice(0,6)}…${activeAddress.slice(-4)}`) : '');
 
   const askAgent = async () => {
     if (!agentQ.trim() || agentBusy) return;
     setAgentBusy(true); setAgentA('');
     try {
-      const r = await fetch('/api/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ message:agentQ, rag:true }) });
+      const r = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: agentQ, rag: true }),
+      });
       const d = await r.json();
       setAgentA(d.text || d.response || 'No answer returned.');
     } catch { setAgentA('Agent offline. Start the server.'); }
     finally { setAgentBusy(false); }
   };
 
-  /* ── Centred column, max 1280px, comfortable desktop padding ── */
+  /* Centred column, max 1280px */
   const W: React.CSSProperties = { width:'100%', maxWidth:1280, margin:'0 auto', padding:'0 40px' };
 
   return (
@@ -203,7 +284,7 @@ export default function Home() {
           <span style={HL.green}>KAI</span> <span style={{ color:'#fff' }}>NUVARI</span>
         </h1>
         <p style={{ fontSize:11, fontWeight:700, letterSpacing:2.8, textTransform:'uppercase', color:'rgba(255,255,255,0.52)', margin:0, ...Rs }}>
-          ETHEREUM & HEDERA · X402 DEFI ECOSYSTEM
+          HEDERA & ETHEREUM · X402 DEFI ECOSYSTEM
         </p>
       </motion.div>
 
@@ -219,8 +300,12 @@ export default function Home() {
             fontSize:15, fontWeight:800, color:'#fff', ...R,
           }}>
           <span style={{ fontSize:16 }}>🔗</span>
-          {isConnected ? `Connected: ${address?.slice(0,6)}…${address?.slice(-4)}` : 'Connect Wallet'}
-          {isConnected && <span style={{ width:8, height:8, borderRadius:'50%', background:'#6ee7b7', boxShadow:'0 0 8px #6ee7b7', animation:'pulse-dot 2s ease-in-out infinite' }} />}
+          {isWalletConnected
+            ? (isHashPack
+                ? `HashPack: ${hashPackAccountId}`
+                : `Connected: ${address?.slice(0,6)}…${address?.slice(-4)}`)
+            : 'Connect Wallet'}
+          {isWalletConnected && <span style={{ width:8, height:8, borderRadius:'50%', background:'#6ee7b7', boxShadow:'0 0 8px #6ee7b7', animation:'pulse-dot 2s ease-in-out infinite' }} />}
         </motion.button>
       </motion.div>
 
@@ -236,11 +321,11 @@ export default function Home() {
           <span style={{ fontSize:22, flexShrink:0 }}>⛰️</span>
           <div style={{ flex:1 }}>
             <p style={{ fontSize:14, fontWeight:800, margin:'0 0 2px', color:'rgba(255,255,255,0.92)', ...R }}>
-              Ethereum & Hedera (X402)
-              <span style={{ color:'rgba(255,255,255,0.55)', fontWeight:500 }}> · MetaMask &amp; Web3 Wallet</span>
+              Hedera &amp; Ethereum (X402)
+              <span style={{ color:'rgba(255,255,255,0.55)', fontWeight:500 }}> · HashPack &amp; MetaMask</span>
             </p>
             <p style={{ fontSize:12, color:'rgba(255,255,255,0.50)', margin:0, ...Rs }}>
-              6 Ecosystem Tokens · DeFi Vaults · DAO Governance
+              7 Ecosystem Tokens · DeFi Vaults · DAO Governance
             </p>
           </div>
           <div style={{ display:'flex', gap:4, flexShrink:0 }}>
@@ -308,17 +393,17 @@ export default function Home() {
             <div style={{ marginTop:10, marginBottom:14 }}>
               <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3 }}>
                 <h2 style={{ fontSize:22, fontWeight:900, margin:0, letterSpacing:'-0.4px', color:'#fff', ...R }}>
-                  {isConnected ? (displayName || 'KAI Member') : 'Not Connected'}
+                  {isWalletConnected ? (displayName || 'KAI Member') : 'Not Connected'}
                 </h2>
-                {isConnected && <span style={{ width:20, height:20, borderRadius:'50%', background:'linear-gradient(135deg,#10b981,#047857)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, flexShrink:0, boxShadow:'0 0 10px rgba(16,185,129,0.55)' }}>✓</span>}
+                {isWalletConnected && <span style={{ width:20, height:20, borderRadius:'50%', background:'linear-gradient(135deg,#10b981,#047857)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, flexShrink:0, boxShadow:'0 0 10px rgba(16,185,129,0.55)' }}>✓</span>}
               </div>
-              {isConnected && !profile && (
+              {isWalletConnected && !profile && (
                 <Link href="/profile" style={{ fontSize:12, color:'#34d399', margin:'0 0 5px', textDecoration:'none', ...Rs }}>
                   Complete your profile →
                 </Link>
               )}
               <p style={{ fontSize:13, color:'rgba(255,255,255,0.60)', margin:'4px 0 0', lineHeight:1.55, ...Rs }}>
-                {isConnected ? 'KAI Nuvari member · Sepolia / Hedera Testnet' : 'Connect a wallet to see your profile'}
+                {isWalletConnected ? (isHashPack ? 'KAI Nuvari member · Hedera Native' : 'KAI Nuvari member · Hedera EVM') : 'Connect a wallet to see your profile'}
               </p>
             </div>
 
@@ -330,10 +415,10 @@ export default function Home() {
               boxShadow:'0 0 0 0.5px rgba(255,255,255,0.07) inset',
             }}>
               {[
-                { label:'Est. Value', value: isConnected ? `$${totalUsd.toFixed(2)}` : '$0.00', color:'#34d399', icon:'💼' },
-                { label:'Network',   value:'Sepolia',   color:null,      icon:'⛰️' },
-                { label:'Tokens',    value:isConnected ? String(activeTokenCount) : '0', color:null, icon:'🪙' },
-                { label:'Status',    value:isConnected ? 'Active' : 'Idle', color:isConnected ? '#34d399' : null, icon:'⚡' },
+                { label:'Est. Value', value: isWalletConnected ? `$${totalUsd.toFixed(2)}` : '$0.00', color:'#34d399', icon:'💼' },
+                { label:'Network',   value: isHashPack ? 'Hedera' : isConnected ? 'Hedera EVM' : 'Hedera', color:null, icon:'⛰️' },
+                { label:'Tokens',    value: isWalletConnected ? String(activeTokenCount) : '0', color:null, icon:'🪙' },
+                { label:'Status',    value: isWalletConnected ? 'Active' : 'Idle', color: isWalletConnected ? '#34d399' : null, icon:'⚡' },
               ].map(s => (
                 <div key={s.label} style={{ textAlign:'center' }}>
                   <span style={{ fontSize:18, display:'block', marginBottom:4 }}>{s.icon}</span>
@@ -360,13 +445,13 @@ export default function Home() {
 
           <p style={{ fontSize:10, fontWeight:700, letterSpacing:1.4, textTransform:'uppercase', color:'rgba(255,255,255,0.48)', marginBottom:6, ...Rs }}>⛰️ Est. Portfolio Value</p>
           <div style={{ display:'flex', alignItems:'baseline', gap:12, marginBottom:16 }}>
-            <span style={{ fontSize:40, fontWeight:900, letterSpacing:-2, color:isConnected?'#fff':'rgba(255,255,255,0.20)', lineHeight:1, ...R }}>
-              ${isConnected ? totalUsd.toFixed(2) : '0.00'}
+            <span style={{ fontSize:40, fontWeight:900, letterSpacing:-2, color:isWalletConnected?'#fff':'rgba(255,255,255,0.20)', lineHeight:1, ...R }}>
+              ${isWalletConnected ? totalUsd.toFixed(2) : '0.00'}
             </span>
-            {isConnected && totalUsd>0 && <span style={{ fontSize:13, ...HL.green }}>+0.00%</span>}
+            {isWalletConnected && totalUsd>0 && <span style={{ fontSize:13, ...HL.green }}>+0.00%</span>}
           </div>
 
-          {isConnected ? (
+          {isWalletConnected ? (
             <>
               <div style={{ overflowX:'auto', scrollbarWidth:'none', marginBottom:14 }}>
                 <div style={{ display:'flex', gap:8, minWidth:'max-content' }}>
@@ -392,7 +477,9 @@ export default function Home() {
                 </div>
               </div>
               <div style={{ display:'flex', gap:7 }}>
-                <div style={{ flex:1, background:'rgba(255,255,255,0.05)', backdropFilter:'blur(8px)', boxShadow:'0 0 0 0.5px rgba(255,255,255,0.07) inset', borderRadius:10, padding:'7px 12px', fontFamily:'monospace', fontSize:10, color:'rgba(255,255,255,0.48)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{address}</div>
+                <div style={{ flex:1, background:'rgba(255,255,255,0.05)', backdropFilter:'blur(8px)', boxShadow:'0 0 0 0.5px rgba(255,255,255,0.07) inset', borderRadius:10, padding:'7px 12px', fontFamily:'monospace', fontSize:10, color:'rgba(255,255,255,0.48)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {activeAddress}
+                </div>
                 <motion.button whileTap={{ scale:0.93 }} onClick={copyAddress} style={{ padding:'7px 12px', borderRadius:10, border:'none', cursor:'pointer', background:copied?'rgba(52,211,153,0.14)':'rgba(255,255,255,0.05)', backdropFilter:'blur(8px)', color:copied?'#34d399':'rgba(255,255,255,0.48)', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', gap:4, transition:'all 0.2s' }}>
                   {copied?'✓':(<><Copy size={12}/> Copy</>)}
                 </motion.button>
@@ -409,37 +496,15 @@ export default function Home() {
               borderRadius:13, padding:'12px 0', cursor:'pointer', border:'none',
               fontSize:14, fontWeight:700, ...HL.green,
             }}>
-              <Wallet size={16}/> Connect MetaMask / Web3 Wallets to view balances
+              <Wallet size={16}/> Connect HashPack / MetaMask to view balances
             </motion.button>
           )}
         </div>
       </motion.div>
 
-      {/* 7 ── STAT PILLS */}
-      <motion.div initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.26 }}
-        style={{ ...W, marginTop:12, display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, position:'relative', zIndex:5 }}>
-        {[
-          { icon:'⛰️', label:'Chain',  value:'Sepolia Testnet', color:'#34d399' },
-          { icon:'🪙', label:'Tokens', value:'6 Active',     color:'#fbbf24' },
-          { icon:'🤖', label:'AI',     value:'Qwen3 RAG',   color:'#c084fc' },
-        ].map((s,i) => (
-          <motion.div key={s.label} className="glass hover-shine"
-            initial={{ opacity:0, y:8 }} animate={{ opacity:1, y:0 }} whileHover={{ y:-4, scale:1.03 }} transition={{ delay:0.28+i*0.05 }}
-            style={{
-              padding:'14px 12px', borderRadius:14, textAlign:'center',
-              background:'rgba(8,8,16,0.58)', backdropFilter:'blur(16px)',
-              boxShadow:`0 0 0 0.5px ${s.color}25 inset, 0 4px 18px rgba(0,0,0,0.35)`,
-            }}>
-            <span style={{ fontSize:22, display:'block', marginBottom:6 }}>{s.icon}</span>
-            <p style={{ fontSize:10, fontWeight:700, letterSpacing:1.0, textTransform:'uppercase', color:'rgba(255,255,255,0.40)', margin:'0 0 3px' }}>{s.label}</p>
-            <p style={{ fontSize:14, fontWeight:800, color:'rgba(255,255,255,0.90)', margin:0 }}>{s.value}</p>
-          </motion.div>
-        ))}
-      </motion.div>
-
-      {/* 8 ── KAI AGENT */}
-      <motion.div initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.30 }}
-        style={{ ...W, marginTop:12, position:'relative', zIndex:5 }}>
+      {/* 7 ── KAI AGENT */}
+      <motion.div initial={{ opacity:0, y:10 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.28 }}
+        style={{ ...W, marginTop:16, position:'relative', zIndex:5 }}>
         <div className="glass-prism" style={{
           borderRadius:20,
           background:'rgba(6,6,14,0.72)', backdropFilter:'blur(26px) saturate(1.8)',
@@ -455,7 +520,7 @@ export default function Home() {
               <p style={{ fontSize:15, fontWeight:800, margin:'0 0 2px', color:'#fff', ...Rs }}>
                 <span style={HL.green}>KAI</span> Intelligence
               </p>
-              <p style={{ fontSize:10, color:'#34d399', margin:0, fontWeight:700 }}>● RAG Agent · Qwen3 · Live</p>
+              <p style={{ fontSize:10, color:'#34d399', margin:0, fontWeight:700 }}>● KAI AI Assistant · Live</p>
             </div>
             <Link href="/ai" style={{ fontSize:12, color:'rgba(255,255,255,0.48)', textDecoration:'none', fontWeight:700, display:'flex', alignItems:'center', gap:3, flexShrink:0 }}>
               Full chat <ChevronRight size={13}/>
@@ -512,8 +577,8 @@ export default function Home() {
         </div>
       </motion.div>
 
-      {/* 9 ── DASHBOARDS */}
-      <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.34 }}
+      {/* 8 ── DASHBOARDS */}
+      <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.32 }}
         style={{ ...W, marginTop:24, position:'relative', zIndex:5 }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
           <p style={{ fontSize:10, fontWeight:700, letterSpacing:1.4, textTransform:'uppercase', color:'rgba(255,255,255,0.52)', margin:0 }}>Dashboards</p>
@@ -524,7 +589,7 @@ export default function Home() {
             const Icon = d.icon;
             return (
               <motion.div key={d.id}
-                initial={{ opacity:0, x:-14 }} animate={{ opacity:1, x:0 }} transition={{ delay:0.36+i*0.06 }}
+                initial={{ opacity:0, x:-14 }} animate={{ opacity:1, x:0 }} transition={{ delay:0.34+i*0.06 }}
                 whileHover={{ x:4 }}>
                 <Link href={d.href} style={{ textDecoration:'none' }}>
                   <div className="hover-shine" style={{
@@ -552,8 +617,8 @@ export default function Home() {
         </div>
       </motion.div>
 
-      {/* 10 ── QUICK ACTIONS */}
-      <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.38 }}
+      {/* 9 ── QUICK ACTIONS */}
+      <motion.div initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.36 }}
         style={{ ...W, marginTop:24, paddingBottom:40, position:'relative', zIndex:5 }}>
         <p style={{ fontSize:10, fontWeight:700, letterSpacing:1.4, textTransform:'uppercase', color:'rgba(255,255,255,0.52)', margin:'0 0 14px' }}>
           Quick Actions
@@ -563,7 +628,7 @@ export default function Home() {
             const Icon = a.icon;
             return (
               <motion.div key={a.name}
-                initial={{ opacity:0, y:14 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.40+i*0.03 }}
+                initial={{ opacity:0, y:14 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.38+i*0.03 }}
                 whileHover={{ y:-6, scale:1.04 }} whileTap={{ scale:0.95 }}>
                 <Link href={a.href} style={{ textDecoration:'none' }}>
                   <div className="hover-shine" style={{
@@ -593,6 +658,7 @@ export default function Home() {
         </div>
       </motion.div>
 
+      {/* Modal */}
       {showModal && <WalletConnectModal onClose={() => setShowModal(false)} />}
     </main>
   );

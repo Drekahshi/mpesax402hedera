@@ -167,23 +167,11 @@ export default function ETHChatPage() {
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 15, fontWeight: 900, color: '#fff', margin: 0 }}>KAI Agent</p>
           <p style={{ fontSize: 10, color: '#10b981', margin: 0, fontWeight: 700, letterSpacing: 0.2 }}>
-            ● Qwen3:1.7b · Ethereum & Hedera (X402) RAG
+            ● KAI AI Assistant · Live
           </p>
         </div>
 
         <div style={{ display: 'flex', gap: 6 }}>
-          <button
-            onClick={() => setRagEnabled(r => !r)}
-            title={ragEnabled ? 'RAG On' : 'RAG Off'}
-            style={{
-              width: 34, height: 34, borderRadius: 10, border: 'none',
-              background: ragEnabled ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)',
-              boxShadow: ragEnabled ? '0 0 12px rgba(16,185,129,0.25)' : 'none',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}>
-            <Database size={14} color={ragEnabled ? '#10b981' : 'rgba(255,255,255,0.35)'} />
-          </button>
           <button
             onClick={() => setVoiceOn(v => !v)}
             style={{
@@ -199,29 +187,6 @@ export default function ETHChatPage() {
           </button>
         </div>
       </div>
-
-      {/* ── RAG status pill ── */}
-      <AnimatePresence>
-        {ragEnabled && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            style={{
-              position: 'relative', zIndex: 9,
-              margin: '0 18px',
-              padding: '5px 12px',
-              background: 'rgba(16,185,129,0.06)',
-              borderRadius: '0 0 10px 10px',
-              display: 'flex', gap: 6, alignItems: 'center',
-              fontSize: 10, color: 'rgba(255,255,255,0.50)',
-            }}>
-            <Sparkles size={10} color="#10b981" />
-            RAG active · KAI Chain docs indexed
-            <code style={{ color: '#10b981', fontSize: 9 }}>bizmodel.md</code>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* ── QUICK PROMPTS ── */}
       <div style={{
@@ -311,7 +276,6 @@ export default function ETHChatPage() {
                     margin: '0 0 5px', letterSpacing: 0.5,
                     display: 'flex', alignItems: 'center', gap: 4,
                   }}>
-                    {m.isRag && <Database size={8} />}
                     {m.agent}
                   </p>
                 )}
