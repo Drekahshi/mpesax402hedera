@@ -23,8 +23,7 @@
  *   NEXT_PUBLIC_HEDERA_NETWORK  (testnet | mainnet)
  */
 
-import { HashConnect } from 'hashconnect';
-import type { SessionData, DappMetadata } from 'hashconnect';
+import type { HashConnect, SessionData, DappMetadata } from 'hashconnect';
 import { LedgerId, AccountId, TransferTransaction, TokenId, NftId, Hbar } from '@hashgraph/sdk';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -96,6 +95,7 @@ export async function initHashConnect(): Promise<HashConnect> {
   }
   if (_instance) return _instance;
 
+  const { HashConnect } = await import('hashconnect');
   const hc = new HashConnect(LEDGER_ID, PROJECT_ID, HASHCONNECT_APP_METADATA, false);
   _instance = hc;
 
