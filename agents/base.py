@@ -21,6 +21,8 @@ GROQ_MODEL     = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 GROQ_URL       = "https://api.groq.com/openai/v1/chat/completions"
 TIMEOUT        = 60.0
 
+GEMINI_FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-3.6-flash"]
+
 _OFFLINE_MSG = (
     "The AI model is currently unavailable. "
     "Check your GEMINI_API_KEY in .env.\n"
@@ -68,8 +70,12 @@ async def gemini_complete(
     system: str = "",
     model: str = GEMINI_MODEL,
 ) -> str:
-    """Complete prompt using Google Gemini API."""
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={GEMINI_API_KEY}"
+    """Complete prompt using Google Gemini API, cascading across models on 429/500/503."""
+    candidates: list[str] = []
+    for _m in [model] + GEMINI_FALLBACK_MODELS:
+        if _m not in candidates:
+            candidates.append(_m)
+
     contents = []
     if system:
         contents.append({"role": "user", "parts": [{"text": f"System Instructions: {system}"}]})
@@ -83,11 +89,28 @@ async def gemini_complete(
             "maxOutputTokens": 2048,
         }
     }
-    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        resp = await client.post(url, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+    last_err: Exception | None = None
+    for candidate in candidates:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{candidate}:generateContent?key={GEMINI_API_KEY}"
+        try:
+            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                resp = await client.post(url, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                parts = data["candidates"][0]["content"]["parts"]
+                text = "".join(p.get("text", "") for p in parts).strip()
+                if text:
+                    return text
+                last_err = RuntimeError(f"{candidate} returned empty response (thinking only)")
+        except httpx.HTTPStatusError as e:
+            last_err = e
+            if e.response.status_code not in (429, 500, 503):
+                raise
+        except httpx.HTTPError as e:
+            last_err = e
+        await asyncio.sleep(1)
+    raise last_err or RuntimeError("Gemini unavailable: all models failed")
 
 
 async def gemini_stream(
