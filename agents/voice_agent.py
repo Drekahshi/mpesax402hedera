@@ -26,6 +26,7 @@ from __future__ import annotations
 import os
 import io
 import json
+import re
 import asyncio
 import tempfile
 import time
@@ -34,8 +35,61 @@ import httpx
 import edge_tts
 from dotenv import load_dotenv
 from .base import AgentBase, gemini_complete, gemini_stream
+from .nft_catalog import get_nft as _get_conservation_nft
+from .x402_payer import pay_and_call as _x402_pay_and_call
 
 load_dotenv()
+
+# ── NFT purchase intent (PRD Section 18 — voice tools) ────────────────────────
+# Matches "buy NFT 24", "buy me Conservation NFT #24", "purchase nft 5", etc.
+_BUY_NFT_RE = re.compile(r"\b(?:buy|purchase|get)\b.{0,40}?\bnft\b.{0,10}?#?\s*(\d+)", re.IGNORECASE)
+
+
+def _detect_nft_purchase_intent(text: str) -> str | None:
+    m = _BUY_NFT_RE.search(text)
+    return m.group(1) if m else None
+
+
+async def _execute_nft_purchase(nft_id: str, hedera_account_id: str | None) -> str:
+    """
+    Runs the real X402 purchase (agents/x402_payer.py -> /agents/nft/purchase)
+    and returns the spoken reply. Never lets the LLM decide whether a payment
+    is authorized or succeeded — this is deterministic, code-driven, and the
+    only path that can actually move money.
+    """
+    nft = _get_conservation_nft(nft_id)
+    if not nft:
+        return f"I couldn't find Conservation NFT number {nft_id} in the catalog."
+
+    if not hedera_account_id:
+        return (
+            f"{nft['name']} costs {nft['price_hbar']} HBAR. "
+            "I don't have your Hedera account id yet — add it in the voice panel and ask again."
+        )
+
+    base_url = os.getenv("AGENT_BASE_URL", "http://127.0.0.1:8000")
+    try:
+        result, receipt = await _x402_pay_and_call(
+            f"{base_url}/agents/nft/purchase",
+            json_body={"nft_id": nft_id, "hedera_account_id": hedera_account_id},
+            # Payer identity is the platform's own operator account (delegated
+            # Auto-Pay model, PRD Section 7) — we never hold a caller's private
+            # key, so hedera_account is left to default rather than passing
+            # hedera_account_id here.
+        )
+    except Exception as e:
+        return f"That purchase failed: {e}"
+
+    if receipt is None or not isinstance(result, dict) or not result.get("mint"):
+        detail = "payment could not be verified"
+        if isinstance(result, dict):
+            detail = result.get("detail") or result.get("error") or detail
+        return f"I couldn't complete that purchase — {detail}."
+
+    return (
+        f"Done. {nft['name']} has been purchased for {nft['price_hbar']} HBAR "
+        f"and transferred to your Hedera account. Transaction: {receipt.hedera_tx_id}."
+    )
 
 # ── TTS config ────────────────────────────────────────────────────────────────
 
@@ -228,6 +282,7 @@ class VoiceAgent(AgentBase):
         self,
         text: str,
         voice: str | None = None,
+        hedera_account_id: str | None = None,
     ) -> dict:
         """
         Full voice chat round-trip:
@@ -238,11 +293,15 @@ class VoiceAgent(AgentBase):
         import base64
         t0 = time.time()
 
-        # Get KAI's text response via Gemini
-        response_text = await gemini_complete(
-            prompt=text,
-            system=VOICE_SYSTEM,
-        )
+        nft_id = _detect_nft_purchase_intent(text)
+        if nft_id:
+            response_text = await _execute_nft_purchase(nft_id, hedera_account_id)
+        else:
+            # Get KAI's text response via Gemini
+            response_text = await gemini_complete(
+                prompt=text,
+                system=VOICE_SYSTEM,
+            )
 
         # Synthesize to speech
         audio_bytes = await self.speak(response_text, voice=voice)
@@ -263,6 +322,7 @@ class VoiceAgent(AgentBase):
         self,
         text: str,
         voice: str | None = None,
+        hedera_account_id: str | None = None,
     ) -> AsyncIterator[str]:
         """
         Streaming voice chat — yields SSE events:
@@ -272,21 +332,29 @@ class VoiceAgent(AgentBase):
         """
         import base64
 
-        # Collect the full text while streaming tokens via Gemini
-        full_text = []
+        nft_id = _detect_nft_purchase_intent(text)
+        if nft_id:
+            # Deterministic, code-driven purchase — not streamed token-by-token
+            # since the LLM plays no part in deciding or reporting the outcome.
+            reply = await _execute_nft_purchase(nft_id, hedera_account_id)
+            yield f"data: {json.dumps({'type': 'text', 'chunk': reply})}\n\n"
+            full_response = _clean_for_speech(reply)
+        else:
+            # Collect the full text while streaming tokens via Gemini
+            full_text = []
 
-        async for sse_line in gemini_stream(text, system=VOICE_SYSTEM):
-            if not sse_line.startswith("data: "):
-                continue
-            payload = json.loads(sse_line[6:])
-            if payload.get("done"):
-                break
-            token = payload.get("token", "")
-            if token:
-                full_text.append(token)
-                yield f"data: {json.dumps({'type': 'text', 'chunk': token})}\n\n"
+            async for sse_line in gemini_stream(text, system=VOICE_SYSTEM):
+                if not sse_line.startswith("data: "):
+                    continue
+                payload = json.loads(sse_line[6:])
+                if payload.get("done"):
+                    break
+                token = payload.get("token", "")
+                if token:
+                    full_text.append(token)
+                    yield f"data: {json.dumps({'type': 'text', 'chunk': token})}\n\n"
 
-        full_response = _clean_for_speech("".join(full_text))
+            full_response = _clean_for_speech("".join(full_text))
 
         # Stream TTS audio chunks
         try:

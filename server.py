@@ -80,7 +80,9 @@ from agents.identity   import (
 from agents.x402_rails import (
     build_402_response, build_payment_requirement, get_x402_info,
     settle_payment_async, decode_payment_header, x402_gate, ROUTE_PRICES,
+    verify_hedera_payment,
 )
+from agents.nft_catalog import get_nft as get_conservation_nft
 from agents.rails import agent_rails, PaymentChannel
 
 # ── Singleton agent instances ─────────────────────────────────────────────────
@@ -124,9 +126,17 @@ app.add_middleware(
 
 # ── Gemini & Groq & Needle config ─────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 GROQ_API_KEY   = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL     = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+
+# Model cascade: try the fast model first, fall back to more reliable ones
+# when Gemini returns 429/500/503 (quota / capacity).
+GEMINI_FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.5-flash", "gemini-3.6-flash"]
+GEMINI_MODELS: list[str] = []
+for _m in [GEMINI_MODEL] + GEMINI_FALLBACK_MODELS:
+    if _m and _m not in GEMINI_MODELS:
+        GEMINI_MODELS.append(_m)
 
 # ── Internal service auth (money-moving Hedera endpoints) ─────────────────────
 INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "")
@@ -199,51 +209,116 @@ from langchain_core.messages import AIMessage
 
 class ChatGemini(Runnable):
     """Native Google Gemini chat runnable for LangChain."""
-    def __init__(self, api_key: str, model: str = "gemini-flash-latest", temperature: float = 0.3, max_tokens: int = 2048):
+    def __init__(self, api_key: str, model: str = "gemini-flash-latest", temperature: float = 0.3, max_tokens: int = 2048, models: list[str] | None = None):
         self.api_key = api_key
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
+        self.models = models or [model]
 
-    def _call(self, prompt_text: str, system_text: str = "") -> str:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
+    def _build_contents(self, prompt_text: str, system_text: str = ""):
         contents = []
         if system_text:
             contents.append({"role": "user", "parts": [{"text": f"System Instructions: {system_text}"}]})
             contents.append({"role": "model", "parts": [{"text": "Understood."}]})
         contents.append({"role": "user", "parts": [{"text": prompt_text}]})
+        return contents
+
+    def _call(self, prompt_text: str, system_text: str = "") -> str:
         payload = {
-            "contents": contents,
+            "contents": self._build_contents(prompt_text, system_text),
             "generationConfig": {
                 "temperature": self.temperature,
                 "maxOutputTokens": self.max_tokens,
             }
         }
-        with httpx.Client(timeout=30.0) as client:
-            resp = client.post(url, json=payload)
-            if resp.status_code != 200:
-                raise Exception(f"Gemini API error ({resp.status_code}): {resp.text}")
-            data = resp.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        last_err = None
+        for model in self.models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.api_key}"
+            try:
+                with httpx.Client(timeout=30.0) as client:
+                    resp = client.post(url, json=payload)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    parts = data["candidates"][0]["content"]["parts"]
+                    text = "".join(p.get("text", "") for p in parts).strip()
+                    if text:
+                        return text
+                    last_err = RuntimeError(f"{model} returned empty response (thinking only)")
+            except httpx.HTTPStatusError as e:
+                last_err = e
+                if e.response.status_code not in (429, 500, 503):
+                    raise
+            except httpx.HTTPError as e:
+                last_err = e
+            time.sleep(1)
+        raise last_err or RuntimeError("Gemini unavailable: all models failed")
+
+    def _stream_call(self, prompt_text: str, system_text: str = ""):
+        payload = {
+            "contents": self._build_contents(prompt_text, system_text),
+            "generationConfig": {
+                "temperature": self.temperature,
+                "maxOutputTokens": self.max_tokens,
+            }
+        }
+        for model in self.models:
+            url = (
+                f"https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{model}:streamGenerateContent?alt=sse&key={self.api_key}"
+            )
+            try:
+                with httpx.Client(timeout=60.0) as client:
+                    with client.stream("POST", url, json=payload) as resp:
+                        if resp.status_code != 200:
+                            raise Exception(f"Gemini stream error ({resp.status_code}): {resp.text}")
+                        for line in resp.iter_lines():
+                            if not line or not line.startswith("data: "):
+                                continue
+                            data_str = line[6:].strip()
+                            if data_str == "[DONE]":
+                                break
+                            try:
+                                chunk = json.loads(data_str)
+                            except json.JSONDecodeError:
+                                continue
+                            parts = chunk.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                            for part in parts:
+                                token = part.get("text", "")
+                                if token:
+                                    yield token
+                return
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code not in (429, 500, 503):
+                    raise
+            except Exception:
+                pass
+            time.sleep(1)
+        raise RuntimeError("Gemini unavailable: all models failed")
+
+    def _as_text(self, input_val: any) -> str:
+        if hasattr(input_val, "to_string"):
+            return input_val.to_string()
+        if hasattr(input_val, "messages"):
+            return "\n".join(f"{m.type}: {m.content}" for m in input_val.messages)
+        if isinstance(input_val, dict):
+            return str(input_val)
+        return str(input_val)
 
     def invoke(self, input_val: any, config: RunnableConfig = None) -> AIMessage:
-        if hasattr(input_val, "to_string"):
-            text = input_val.to_string()
-        elif hasattr(input_val, "messages"):
-            text = "\n".join(f"{m.type}: {m.content}" for m in input_val.messages)
-        elif isinstance(input_val, dict):
-            text = str(input_val)
-        else:
-            text = str(input_val)
-        out = self._call(text)
+        out = self._call(self._as_text(input_val))
         return AIMessage(content=out)
 
     def stream(self, input_val: any, config: RunnableConfig = None):
-        msg = self.invoke(input_val, config)
-        words = msg.content.split(" ")
-        for i, w in enumerate(words):
-            suffix = " " if i < len(words) - 1 else ""
-            yield AIMessage(content=w + suffix)
+        try:
+            for token in self._stream_call(self._as_text(input_val)):
+                yield AIMessage(content=token)
+        except Exception:
+            msg = self.invoke(input_val, config)
+            words = msg.content.split(" ")
+            for i, w in enumerate(words):
+                suffix = " " if i < len(words) - 1 else ""
+                yield AIMessage(content=w + suffix)
 
 # 1. Prioritize Gemini if GEMINI_API_KEY is present
 if GEMINI_API_KEY:
@@ -251,6 +326,7 @@ if GEMINI_API_KEY:
         model = ChatGemini(
             api_key=GEMINI_API_KEY,
             model=GEMINI_MODEL,
+            models=GEMINI_MODELS,
             temperature=0.3,
             max_tokens=2048,
         )
@@ -1821,6 +1897,72 @@ async def hedera_mint_connft_endpoint(body: HederaMintNFTRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class NftPurchaseRequest(BaseModel):
+    nft_id: str
+    hedera_account_id: str
+
+
+@app.post("/agents/nft/purchase")
+async def nft_purchase_endpoint(body: NftPurchaseRequest, request: Request):
+    """
+    Buy a Conservation NFT with HBAR via X402 (PRD Section 8).
+
+    Unlike the static-price routes gated by x402_gate(), the price here is
+    per-item, so the 402 challenge/verify is handled inline instead of via
+    the shared X402Middleware (which only supports one fixed price per route).
+
+    Flow:
+      1. No X-HEDERA-PAYER header  -> 402 with this item's real price
+      2. Header present            -> verify payment via Mirror Node
+      3. Verified                  -> mint the NFT to hedera_account_id
+    """
+    nft = get_conservation_nft(body.nft_id)
+    if not nft:
+        raise HTTPException(status_code=404, detail=f"No conservation NFT with id {body.nft_id}")
+
+    price_tinybar = int(round(nft["price_hbar"] * 1e8))
+
+    payer_account = request.headers.get("X-HEDERA-PAYER", "")
+    payment_network = request.headers.get("X-PAYMENT-NETWORK", "").lower()
+
+    if payment_network != "hedera" or not payer_account:
+        req = build_payment_requirement(
+            "/agents/nft/purchase",
+            body.hedera_account_id,
+            override_hedera_tinybar=price_tinybar,
+        )
+        return JSONResponse(
+            status_code=402,
+            content={
+                "error": "Payment Required",
+                "message": f"{nft['name']} costs {nft['price_hbar']} HBAR.",
+                "accepts": [req],
+            },
+        )
+
+    valid, tx_id = await verify_hedera_payment(payer_account, price_tinybar, nonce="")
+    if not valid:
+        raise HTTPException(status_code=402, detail={"error": "Hedera payment not found or insufficient"})
+
+    try:
+        mint_result = await mint_conservation_nft(
+            recipient=body.hedera_account_id,
+            conservation_id=body.nft_id,
+            event_type="voice_purchase",
+            metadata_pointer=nft["metadata_pointer"],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return {
+        "nft_id": body.nft_id,
+        "name": nft["name"],
+        "price_hbar": nft["price_hbar"],
+        "payment_tx_id": tx_id,
+        "mint": mint_result,
+    }
+
+
 @app.post("/agents/hedera/transfer/hbar", dependencies=[Depends(require_internal_key)])
 async def hedera_transfer_hbar_endpoint(body: HederaTransferRequest):
     """Transfer HBAR from the operator account to a recipient."""
@@ -1948,6 +2090,7 @@ class VoiceSpeakRequest(BaseModel):
 class VoiceChatRequest(BaseModel):
     text:  str
     voice: Optional[str] = None
+    hedera_account_id: Optional[str] = None
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
@@ -2056,7 +2199,7 @@ async def voice_chat(body: VoiceChatRequest):
     if not body.text.strip():
         raise HTTPException(400, "text cannot be empty")
     try:
-        result = await voice_agent.voice_chat(body.text, voice=body.voice)
+        result = await voice_agent.voice_chat(body.text, voice=body.voice, hedera_account_id=body.hedera_account_id)
         return result
     except Exception as e:
         raise HTTPException(500, detail=f"Voice chat failed: {e}")
@@ -2075,7 +2218,7 @@ async def voice_chat_stream(body: VoiceChatRequest):
         raise HTTPException(400, "text cannot be empty")
 
     return StreamingResponse(
-        voice_agent.voice_chat_stream(body.text, voice=body.voice),
+        voice_agent.voice_chat_stream(body.text, voice=body.voice, hedera_account_id=body.hedera_account_id),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

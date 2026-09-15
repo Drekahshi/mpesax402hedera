@@ -219,13 +219,21 @@ async def verify_hedera_hts_payment(
 
 # ── Payment requirement builder ───────────────────────────────────────────────
 
-def build_payment_requirement(route: str, payer: str | None = None) -> dict:
+def build_payment_requirement(
+    route: str,
+    payer: str | None = None,
+    override_hedera_tinybar: int | None = None,
+) -> dict:
     """
     Build the x402 payment requirement object returned in the 402 response.
     Returns both EVM and Hedera payment paths when both are configured.
+
+    override_hedera_tinybar lets a caller quote a price that isn't in the
+    static ROUTE_PRICES table (e.g. a per-item NFT price) without touching
+    that table or affecting any other route.
     """
     price = ROUTE_PRICES.get(route, 100)
-    hedera_price = HEDERA_ROUTE_PRICES.get(route, 1_000_000)
+    hedera_price = override_hedera_tinybar if override_hedera_tinybar is not None else HEDERA_ROUTE_PRICES.get(route, 1_000_000)
     nonce = "0x" + hashlib.sha3_256(
         f"{route}:{payer or 'anonymous'}:{time.time()}".encode()
     ).hexdigest()

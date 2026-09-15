@@ -265,10 +265,14 @@ export function useVoiceChat(options: VoiceChatOptions = {}): VoiceChatReturn {
     isPlayingRef.current  = false;
 
     try {
+      const hederaAccountId = typeof window !== 'undefined'
+        ? localStorage.getItem('kai_hedera_account_id') || undefined
+        : undefined;
+
       const res = await fetch(`${backendUrl}/agents/voice/chat/stream`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ text, voice: resolveVoice(voice) }),
+        body:    JSON.stringify({ text, voice: resolveVoice(voice), hedera_account_id: hederaAccountId }),
       });
 
       if (!res.ok || !res.body) {

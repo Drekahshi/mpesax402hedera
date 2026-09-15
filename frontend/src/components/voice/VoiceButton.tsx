@@ -75,7 +75,6 @@ export default function VoiceButton({
   showPanel = true,
 }: VoiceButtonProps) {
   const [panelOpen, setPanelOpen]     = useState(false);
-  const [holdMode,  setHoldMode]      = useState(true);   // true = hold-to-talk, false = tap-to-toggle
   const holdTimerRef                  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didHoldRef                    = useRef(false);
 
@@ -229,6 +228,29 @@ export default function VoiceButton({
             >
               <X size={14} />
             </button>
+          </div>
+
+          {/* Hedera account id — needed for "buy NFT #x" voice purchases */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 9, fontWeight: 700, color: 'rgba(240,253,244,0.45)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+              Your Hedera account (for NFT purchases)
+            </label>
+            <input
+              type="text"
+              placeholder="0.0.xxxxxx"
+              defaultValue={typeof window !== 'undefined' ? localStorage.getItem('kai_hedera_account_id') ?? '' : ''}
+              onChange={(e) => {
+                if (typeof window === 'undefined') return;
+                const v = e.target.value.trim();
+                if (v) localStorage.setItem('kai_hedera_account_id', v);
+                else localStorage.removeItem('kai_hedera_account_id');
+              }}
+              style={{
+                fontSize: 12, padding: '7px 10px', borderRadius: 8,
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(16,185,129,0.20)',
+                color: '#f0fdf4', outline: 'none',
+              }}
+            />
           </div>
 
           {/* Instruction */}
