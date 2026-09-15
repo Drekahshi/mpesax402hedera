@@ -321,12 +321,20 @@ export async function getHcsMessages(
   topicId: string,
   limit = 25,
 ): Promise<HcsMessage[]> {
-  const data = await _get<any>(`/topics/${topicId}/messages`, {
+  interface RawHcsMessage {
+    sequence_number: number;
+    consensus_timestamp: string;
+    message: string;
+    running_hash: string;
+    topic_id: string;
+  }
+
+  const data = await _get<{ messages?: RawHcsMessage[] }>(`/topics/${topicId}/messages`, {
     limit: String(limit),
     order: 'desc',
   });
 
-  return (data.messages ?? []).map((m: any) => ({
+  return (data.messages ?? []).map((m) => ({
     sequenceNumber:     m.sequence_number,
     consensusTimestamp: m.consensus_timestamp,
     message:            _decodeMetadata(m.message),

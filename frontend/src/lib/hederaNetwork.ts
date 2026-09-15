@@ -52,14 +52,20 @@ export const CHAIN_IDS = {
 
 // ── MetaMask helpers ──────────────────────────────────────────────────────────
 
-function getProvider(): any {
+interface Eip1193Provider {
+  isMetaMask?: boolean;
+  providers?: Eip1193Provider[];
+  request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+}
+
+function getProvider(): Eip1193Provider | null {
   if (typeof window === 'undefined') return null;
   // MetaMask injects window.ethereum; some wallets use window.ethereum.providers[]
-  const eth = (window as any).ethereum;
+  const eth = (window as unknown as { ethereum?: Eip1193Provider }).ethereum;
   if (!eth) return null;
   // If multiple wallets injected, find MetaMask specifically
   if (eth.providers?.length) {
-    return eth.providers.find((p: any) => p.isMetaMask) ?? eth;
+    return eth.providers.find((p) => p.isMetaMask) ?? eth;
   }
   return eth;
 }
