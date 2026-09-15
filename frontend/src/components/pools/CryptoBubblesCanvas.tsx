@@ -51,7 +51,7 @@ export default function CryptoBubblesCanvas({
     const height = (canvas.height = 480);
 
     // Initialize bubble positions
-    let nodes: BubbleNode[] = KAI_TOKENS.map((token, i) => {
+    const nodes: BubbleNode[] = KAI_TOKENS.map((token, i) => {
       const radius = Math.min(130, Math.max(50, Math.sqrt(token.tvl) / 15));
       return {
         ...token,
@@ -134,10 +134,10 @@ export default function CryptoBubblesCanvas({
       // Repel physics between nodes
       for (let i = 0; i < nodes.length; i++) {
         for (let j = i + 1; j < nodes.length; j++) {
-          let dx = nodes[j].x - nodes[i].x;
-          let dy = nodes[j].y - nodes[i].y;
-          let dist = Math.sqrt(dx * dx + dy * dy);
-          let minDist = nodes[i].radius + nodes[j].radius + 10;
+          const dx = nodes[j].x - nodes[i].x;
+          const dy = nodes[j].y - nodes[i].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const minDist = nodes[i].radius + nodes[j].radius + 10;
           
           if (dist < minDist && dist > 0) {
             const angle = Math.atan2(dy, dx);

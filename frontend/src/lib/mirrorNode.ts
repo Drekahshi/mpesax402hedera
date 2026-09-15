@@ -60,15 +60,23 @@ export interface MirrorAccountInfo {
   memo: string;
 }
 
+interface RawAccountInfo {
+  account: string;
+  balance?: { balance?: number; tokens?: Array<{ token_id: string; balance: number }> };
+  evm_address?: string | null;
+  created_timestamp?: string;
+  memo?: string;
+}
+
 export async function getAccountInfo(accountId: string): Promise<MirrorAccountInfo> {
-  const data = await _get<any>(`/accounts/${accountId}`);
+  const data = await _get<RawAccountInfo>(`/accounts/${accountId}`);
 
   return {
     accountId: data.account,
     balance: {
       tinybar: data.balance?.balance ?? 0,
       hbars: (data.balance?.balance ?? 0) / 1e8,
-      tokens: (data.balance?.tokens ?? []).map((t: any) => ({
+      tokens: (data.balance?.tokens ?? []).map((t) => ({
         tokenId: t.token_id,
         balance: t.balance,
       })),
@@ -93,13 +101,19 @@ export interface HtsTokenBalance {
  * Returns all HTS token balances for an account, enriched with token metadata.
  * Suitable for the portfolio dashboard.
  */
+interface RawTokenBalanceItem {
+  token_id: string;
+  balance: number;
+  decimals?: number;
+}
+
 export async function getHtsTokenBalances(accountId: string): Promise<HtsTokenBalance[]> {
-  const data = await _get<any>(`/accounts/${accountId}/tokens`, { limit: '100' });
-  const items: any[] = data.tokens ?? [];
+  const data = await _get<{ tokens?: RawTokenBalanceItem[] }>(`/accounts/${accountId}/tokens`, { limit: '100' });
+  const items: RawTokenBalanceItem[] = data.tokens ?? [];
 
   // Fetch token metadata in parallel (with concurrency cap)
   const results = await Promise.allSettled(
-    items.map(async (item: any) => {
+    items.map(async (item) => {
       let symbol   = item.token_id;
       let name     = item.token_id;
       let decimals = typeof item.decimals === 'number' ? item.decimals : 0;
@@ -142,8 +156,22 @@ export interface TokenInfo {
   memo: string;
 }
 
+interface RawTokenInfo {
+  token_id: string;
+  name: string;
+  symbol: string;
+  decimals: string | number;
+  total_supply: string;
+  max_supply: string;
+  supply_type: 'INFINITE' | 'FINITE';
+  type: 'FUNGIBLE_COMMON' | 'NON_FUNGIBLE_UNIQUE';
+  treasury_account_id: string;
+  created_timestamp: string;
+  memo?: string;
+}
+
 export async function getTokenInfo(tokenId: string): Promise<TokenInfo> {
-  const data = await _get<any>(`/tokens/${tokenId}`);
+  const data = await _get<RawTokenInfo>(`/tokens/${tokenId}`);
   return {
     tokenId:           data.token_id,
     name:              data.name,
@@ -170,8 +198,17 @@ export interface NftInfo {
   spenderId: string | null;
 }
 
+interface RawNftItem {
+  token_id: string;
+  serial_number: number;
+  account_id: string;
+  metadata: string | null;
+  created_timestamp: string;
+  spender?: string | null;
+}
+
 export async function getNftInfo(tokenId: string, serialNumber: number): Promise<NftInfo> {
-  const data = await _get<any>(`/tokens/${tokenId}/nfts/${serialNumber}`);
+  const data = await _get<RawNftItem>(`/tokens/${tokenId}/nfts/${serialNumber}`);
   return {
     tokenId:      data.token_id,
     serialNumber: data.serial_number,
@@ -192,10 +229,10 @@ export async function getNftsForAccount(
   const params: Record<string, string> = { limit: '100' };
   if (tokenId) params['token.id'] = tokenId;
 
-  const data = await _get<any>(`/accounts/${accountId}/nfts`, params);
-  const items: any[] = data.nfts ?? [];
+  const data = await _get<{ nfts?: RawNftItem[] }>(`/accounts/${accountId}/nfts`, params);
+  const items: RawNftItem[] = data.nfts ?? [];
 
-  return items.map((item: any) => ({
+  return items.map((item) => ({
     tokenId:      item.token_id,
     serialNumber: item.serial_number,
     accountId:    item.account_id,
@@ -218,17 +255,28 @@ export interface MirrorTransaction {
   nftTransfers: Array<{ tokenId: string; serialNumber: number; senderAccountId: string; receiverAccountId: string }>;
 }
 
+interface RawTransaction {
+  transaction_id: string;
+  name: string;
+  result: string;
+  consensus_timestamp: string;
+  memo_base64?: string | null;
+  transfers?: Array<{ account: string; amount: number; is_approval?: boolean }>;
+  token_transfers?: Array<{ token_id: string; account: string; amount: number }>;
+  nft_transfers?: Array<{ token_id: string; serial_number: number; sender_account_id: string; receiver_account_id: string }>;
+}
+
 export async function getTransactionHistory(
   accountId: string,
   limit = 25,
 ): Promise<MirrorTransaction[]> {
-  const data = await _get<any>(`/transactions`, {
+  const data = await _get<{ transactions?: RawTransaction[] }>(`/transactions`, {
     'account.id': accountId,
     limit: String(limit),
     order: 'desc',
   });
 
-  return (data.transactions ?? []).map((tx: any) => ({
+  return (data.transactions ?? []).map((tx) => ({
     transactionId:      tx.transaction_id,
     type:               tx.name,
     result:             tx.result,
@@ -236,17 +284,17 @@ export async function getTransactionHistory(
     memo:               tx.memo_base64
       ? Buffer.from(tx.memo_base64, 'base64').toString('utf-8')
       : '',
-    transfers: (tx.transfers ?? []).map((t: any) => ({
+    transfers: (tx.transfers ?? []).map((t) => ({
       account:    t.account,
       amount:     t.amount,
       isApproval: t.is_approval ?? false,
     })),
-    tokenTransfers: (tx.token_transfers ?? []).map((t: any) => ({
+    tokenTransfers: (tx.token_transfers ?? []).map((t) => ({
       tokenId: t.token_id,
       account: t.account,
       amount:  t.amount,
     })),
-    nftTransfers: (tx.nft_transfers ?? []).map((t: any) => ({
+    nftTransfers: (tx.nft_transfers ?? []).map((t) => ({
       tokenId:           t.token_id,
       serialNumber:      t.serial_number,
       senderAccountId:   t.sender_account_id,

@@ -35,7 +35,7 @@ type PurchaseRecord = {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var kaiBushaPayments: Map<string, PurchaseRecord> | undefined;
 }
 const payments: Map<string, PurchaseRecord> =

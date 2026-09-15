@@ -27,7 +27,7 @@ export interface PendingNftPurchase {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var kaiPendingNftPurchases: Map<string, PendingNftPurchase> | undefined;
 }
 
