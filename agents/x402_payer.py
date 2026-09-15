@@ -31,7 +31,8 @@ Env vars:
     USDC_SEPOLIA_ADDRESS      — USDC token on Sepolia
     CHAIN_ID
     SEPOLIA_RPC_URL
-    AGENT_BASE_URL     — Next.js base (for Hedera transfers)
+    NEXTJS_OPERATOR_URL — Next.js base (for Hedera transfers)
+    INTERNAL_SERVICE_KEY — shared secret required by /api/hedera
 """
 
 from __future__ import annotations
@@ -56,7 +57,11 @@ CHAIN_ID      = int(os.getenv("CHAIN_ID", "11155111"))
 SEPOLIA_RPC   = os.getenv("SEPOLIA_RPC_URL", "https://rpc.sepolia.org")
 PAYMENT_TOKEN = os.getenv("USDC_SEPOLIA_ADDRESS", "") or os.getenv("NEXT_PUBLIC_CENTS_ADDRESS", "")
 TREASURY_ADDR = os.getenv("WALLET_ADDRESS", "")
-AGENT_BASE_URL = os.getenv("AGENT_BASE_URL", "http://127.0.0.1:3000")
+# NOTE: deliberately NOT AGENT_BASE_URL (that's this agent's own public
+# service endpoint elsewhere, default :8000). This is the Next.js server
+# holding the real operator key, default :3000 — see hedera_rails.py.
+NEXTJS_OPERATOR_URL = os.getenv("NEXTJS_OPERATOR_URL", "http://127.0.0.1:3000")
+INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "")
 
 # Per-tx safety caps (enforced before any signing)
 MAX_PER_TX_USD   = float(os.getenv("X402_MAX_PER_TX_USD",   "1.00"))
@@ -505,13 +510,14 @@ class X402PaymentClient:
         try:
             async with httpx.AsyncClient(timeout=30.0) as h:
                 r = await h.post(
-                    f"{AGENT_BASE_URL}/api/hedera",
+                    f"{NEXTJS_OPERATOR_URL}/api/hedera",
                     json={
                         "action": "transfer-hbar",
                         "to":     treasury,
                         "amount": amount_hbar,
                         "memo":   f"x402:{url}",
                     },
+                    headers={"X-Internal-Key": INTERNAL_SERVICE_KEY},
                 )
                 r.raise_for_status()
                 result = r.json()
