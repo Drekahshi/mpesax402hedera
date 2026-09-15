@@ -18,6 +18,7 @@
 
 import { NextResponse } from "next/server";
 import { parseCallback, type MpesaCallback } from "@/lib/mpesa";
+import { takePendingPurchase, mintConservationNft } from "@/lib/nftFulfillment";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,9 @@ type PaymentRecord = {
   transactionDate?:   string;
   resultDesc:         string;
   receivedAt:         string;
+  nftMinted?:         boolean;
+  nftMintError?:      string;
+  mintResult?:        unknown;
 };
 
 declare global {
@@ -59,18 +63,41 @@ export async function POST(request: Request) {
       receivedAt: new Date().toISOString(),
     };
 
-    payments.set(parsed.checkoutRequestId, record);
-
     if (parsed.success) {
       console.log(
         `[M-Pesa OK] Receipt: ${parsed.mpesaReceiptNumber} | ` +
         `KES ${parsed.amount} from ${parsed.phoneNumber}`,
       );
+
+      const pending = takePendingPurchase(parsed.checkoutRequestId);
+      if (pending) {
+        try {
+          const mintResult = await mintConservationNft({
+            recipient: pending.hederaAccountId,
+            conservationId: pending.nftId,
+            metadataPointer: pending.metadataPointer,
+          });
+          record.nftMinted = true;
+          record.mintResult = mintResult;
+        } catch (err) {
+          // Payment succeeded but the mint call failed — do NOT silently drop
+          // this. Surface it so it can be retried/reconciled; the buyer paid
+          // real money and must still receive their NFT.
+          record.nftMinted = false;
+          record.nftMintError = err instanceof Error ? err.message : String(err);
+          console.error(`[M-Pesa] mint failed for ${parsed.checkoutRequestId}:`, record.nftMintError);
+        }
+      } else {
+        record.nftMintError = "no pending purchase found for this checkoutRequestId";
+        console.warn(`[M-Pesa] payment confirmed but no pending purchase was registered for ${parsed.checkoutRequestId}`);
+      }
     } else {
       console.log(
         `[M-Pesa FAIL] ${parsed.resultDesc} (code ${parsed.resultCode})`,
       );
     }
+
+    payments.set(parsed.checkoutRequestId, record);
   } catch (err) {
     console.error("[/api/mpesa/callback] parse error:", err);
   }
