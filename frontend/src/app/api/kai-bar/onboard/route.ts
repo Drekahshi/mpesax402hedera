@@ -238,15 +238,12 @@ export async function POST(req: Request) {
     }
 
     // ── record onboarding event in the audit trail ──
-    const activityModel = (prisma as any).activity;
-    if (activityModel) {
-      try {
-        await activityModel.create({
-          data: { userId: user.authUserId!, type: 'WALLET_CREATED', description: 'Privy wallet onboarded' },
-        });
-      } catch {
-        /* audit trail is best-effort */
-      }
+    try {
+      await prisma.activity.create({
+        data: { userId: user.authUserId!, type: 'WALLET_CREATED', description: 'Privy wallet onboarded' },
+      });
+    } catch {
+      /* audit trail is best-effort */
     }
 
     return NextResponse.json({

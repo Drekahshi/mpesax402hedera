@@ -28,7 +28,7 @@ export async function GET(req: Request) {
   const prisma = await getPrisma();
   if (prisma) {
     try {
-      const kaiUser = await (prisma as any).kaiUser.findFirst({
+      const kaiUser = await prisma.kaiUser.findFirst({
         where: {
           wallets: { some: { address: { equals: wallet, mode: 'insensitive' } } },
         },
@@ -87,13 +87,13 @@ export async function POST(req: Request) {
   if (prisma) {
     try {
       // Upsert KaiUser by wallet address
-      const existing = await (prisma as any).kaiWallet.findFirst({
+      const existing = await prisma.kaiWallet.findFirst({
         where: { address: { equals: wallet, mode: 'insensitive' } },
       });
 
       if (!existing) {
         // Create new KaiUser + wallet
-        await (prisma as any).kaiUser.create({
+        await prisma.kaiUser.create({
           data: {
             name:  profile.displayName || 'KAI User',
             email: `${wallet.slice(2, 10)}@kai.local`,

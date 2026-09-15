@@ -2,9 +2,8 @@
 import Link from "next/link";
 import {
   ArrowLeft, LayoutGrid, Coins, Rocket, Code2,
-  ShieldCheck, BarChart3, Zap, Clock, ExternalLink,
+  ShieldCheck, BarChart3, Zap, Clock,
 } from "lucide-react";
-import { useAccount } from "wagmi";
 
 const TEMPLATES = [
   { icon: "", name: "Governance Token",  standard: "ERC-20",  apy: "15.2%", use: "DAO voting, fee burns",          ready: true  },
@@ -23,8 +22,6 @@ const SERVICES = [
 ];
 
 export default function TAASPage() {
-  const { isConnected } = useAccount();
-
   return (
     <main style={{
       minHeight: "100dvh",

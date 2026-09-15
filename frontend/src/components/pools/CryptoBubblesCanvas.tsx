@@ -107,7 +107,7 @@ export default function CryptoBubblesCanvas({
       }
     };
 
-    const handleMouseUp = (e: MouseEvent) => {
+    const handleMouseUp = () => {
       if (isDragging && draggedNode) {
         if (!dragMoved) {
           onSelectPool(draggedNode);

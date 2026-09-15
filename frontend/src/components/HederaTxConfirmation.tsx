@@ -56,7 +56,6 @@ export default function HederaTxConfirmation({
   success,
   transactionId,
   explorerUrl,
-  evmTxHash,
   evmExplorerUrl,
   action,
   inputAmount,

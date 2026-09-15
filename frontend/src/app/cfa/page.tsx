@@ -6,7 +6,7 @@ import {
   ArrowLeft, Trees, Users, Leaf, TrendingUp, ShieldCheck,
   FileText, Globe, ExternalLink, Vote, MapPin, Clock,
   AlertTriangle, CheckCircle, Activity, Coins, RefreshCw,
-  ChevronRight, Zap,
+  ChevronRight,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@ function KPICard({ icon, value, label, color, sub }: { icon: React.ReactNode; va
 }
 
 // Mini bar chart
-function MiniBar({ data, colorA, colorB }: { data: { month: string; trees: number; patrols: number }[]; colorA: string; colorB: string }) {
+function MiniBar({ data, colorA }: { data: { month: string; trees: number; patrols: number }[]; colorA: string }) {
   const maxTrees = Math.max(...data.map(d => d.trees));
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 64, padding: '0 4px' }}>
@@ -192,7 +192,7 @@ export default function CFAPage() {
                 </div>
               </div>
               <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 16, padding: '14px 12px 8px' }}>
-                <MiniBar data={d.monthlyTrend} colorA="#10b981" colorB="#22c55e" />
+                <MiniBar data={d.monthlyTrend} colorA="#10b981" />
               </div>
             </section>
 

@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import {
-  X, CheckCircle, XCircle, Clock, RefreshCw,
-  CreditCard, Zap, ShieldCheck, AlertTriangle, Bell,
+  X, CheckCircle, XCircle, RefreshCw,
+  CreditCard, Zap, ShieldCheck, Bell,
 } from 'lucide-react';
 
 interface PendingPayment {

@@ -3,10 +3,10 @@
 import { useState } from 'react';
 import { useAccount, useWriteContract, useSwitchChain, usePublicClient } from 'wagmi';
 import { sepolia } from 'wagmi/chains';
-import { parseUnits, maxUint256 } from 'viem';
+import { parseUnits } from 'viem';
 import { ERC20_ABI } from '@/lib/erc20abi';
-import { 
-  Bot, ShieldCheck, ArrowRight, ExternalLink, Loader2, CheckCircle2, AlertTriangle, Cpu
+import {
+  ShieldCheck, ArrowRight, ExternalLink, Loader2, CheckCircle2, AlertTriangle, Cpu
 } from 'lucide-react';
 
 export interface AgentProposal {

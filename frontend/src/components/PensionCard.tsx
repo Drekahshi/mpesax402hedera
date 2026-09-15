@@ -1,5 +1,5 @@
 "use client";
-import { Lock, ArrowRight } from "lucide-react";
+import { Lock } from "lucide-react";
 
 export default function PensionCard({ balance, overflowReceived }: { balance: number, overflowReceived: number }) {
   return (

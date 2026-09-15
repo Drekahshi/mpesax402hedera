@@ -1,5 +1,5 @@
 "use client";
-import { Shield, ShieldAlert, ShieldCheck } from "lucide-react";
+import { ShieldAlert, ShieldCheck } from "lucide-react";
 
 export default function InsuranceCard({ active, nextPremiumAmount, automatePremium, onToggleAutomate }: { active: boolean, nextPremiumAmount: number, automatePremium: boolean, onToggleAutomate: () => void }) {
   return (

@@ -13,7 +13,6 @@ import type { PrismaClient } from '@prisma/client';
  */
 
 const SHORT_CODE_LEN = 2 + 4;
-const CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 function makeShortCode(name: string, wallet: string) {
   // "KAI-" + <initial-uppers> + <last 4 hex of wallet upper()>
@@ -28,7 +27,7 @@ function makeShortCode(name: string, wallet: string) {
   return `KAI-${initials}${tail}`;
 }
 
-async function resolveUser(prisma: any, privyUserId: string) {
+async function resolveUser(prisma: PrismaClient, privyUserId: string) {
   return prisma.kaiUser.findUnique({
     where: { privyUserId },
     include: { wallets: true },
@@ -49,7 +48,7 @@ export async function GET(req: Request) {
 
     // Generate + store the code on first request.
     if (!user.referralCode) {
-      const wallet = user.wallets.find((w: any) => w.chain === 'ETHEREUM')?.address ?? '0000000000000000000000000000000000000000';
+      const wallet = user.wallets.find((w) => w.chain === 'ETHEREUM')?.address ?? '0000000000000000000000000000000000000000';
       const code = makeShortCode(user.name, wallet).slice(0, SHORT_CODE_LEN + 4);
       user = await prisma.kaiUser.update({
         where: { id: user.id },
@@ -59,7 +58,6 @@ export async function GET(req: Request) {
     }
 
     // Stats
-    const direct = await prisma.referral.count({ where: { referrerUserId: user.id } });
     const active = await prisma.referral.count({
       where: { referrerUserId: user.id, status: { in: ['VALID', 'REWARDED'] } },
     });
@@ -68,7 +66,7 @@ export async function GET(req: Request) {
       where: { referrerUserId: user.id },
       select: { referredUserId: true },
     });
-    const firstIds = firstLevel.map((r: any) => r.referredUserId);
+    const firstIds = firstLevel.map((r) => r.referredUserId);
     const secondLevel = firstIds.length
       ? await prisma.referral.count({ where: { referrerUserId: { in: firstIds } } })
       : 0;

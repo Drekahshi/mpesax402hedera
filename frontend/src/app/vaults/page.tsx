@@ -21,7 +21,7 @@ import {
 import { sepolia } from "wagmi/chains";
 import { parseUnits, formatUnits, maxUint256 } from "viem";
 import {
-  ArrowLeft, TrendingUp, ExternalLink, RefreshCw,
+  ArrowLeft, ExternalLink, RefreshCw,
   ChevronDown, ChevronUp, Shield,
 } from "lucide-react";
 import WalletConnectModal from "@/components/WalletConnectModal";
@@ -72,7 +72,6 @@ export default function VaultsPage() {
   const [statusMsg,   setStatusMsg]  = useState("");
   const [txUrl,       setTxUrl]      = useState<string | null>(null);
   const [busy,        setBusy]       = useState(false);
-  const [refreshKey,  setRefreshKey] = useState(0);
 
   // ── Read on-chain: token balances + vault share balances + share prices ────
   const deployed = VAULTS.filter(v => v.tokenAddr && v.vaultAddr);
@@ -99,7 +98,6 @@ export default function VaultsPage() {
 
   const handleRefresh = useCallback(async () => {
     await Promise.allSettled([refetchBals(), refetchShares(), refetchPrices(), refetchTvl()]);
-    setRefreshKey(k => k + 1);
   }, [refetchBals, refetchShares, refetchPrices, refetchTvl]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Shield, TrendingUp, Zap } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 
 export default function VaultCard({ balance, yieldEarned, onDeposit }: { balance: number, yieldEarned: number, onDeposit: (amount: number) => void }) {
   const [amount, setAmount] = useState("");

@@ -203,7 +203,16 @@ function PostRow({ post, idx, onLike, onTip }: { post: Post; idx: number; onLike
       <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap', marginBottom: 16 }}>
         <Stat icon={<Eye size={14} color={C.goldLight} />} value={post.viewsCount.toLocaleString()} label="views" />
         <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span
+            role="button"
+            aria-pressed={liked}
+            onClick={() => {
+              if (liked) return;
+              setLiked(true);
+              onLike(post.id);
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: liked ? 'default' : 'pointer' }}
+          >
             <Heart size={14} color={liked ? C.clay : C.goldLight} style={{ fill: liked ? C.clay : 'none', transition: 'fill 0.15s' }} />
           </span>
           <span style={{ ...SERIF, fontSize: 20, fontWeight: 600, letterSpacing: '-0.3px', color: C.paper }}>
