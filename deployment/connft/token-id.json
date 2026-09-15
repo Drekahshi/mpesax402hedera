@@ -1,0 +1,15 @@
+{
+  "collection": "Conservation Event NFT",
+  "symbol": "KCNFT",
+  "tokenId": "0.0.10449914",
+  "network": "testnet",
+  "type": "NON_FUNGIBLE_UNIQUE",
+  "envKey": "NEXT_PUBLIC_CONNFT_TOKEN_ID",
+  "explorerUrl": "https://hashscan.io/testnet/token/0.0.10449914",
+  "mirrorNodeUrl": "https://testnet.mirrornode.hedera.com/api/v1/tokens/0.0.10449914",
+  "totalSerials": 105,
+  "currency": "yBOB / HBAR",
+  "schema": "HIP-412",
+  "treasuryAccountId": "0.0.5834216",
+  "description": "Conservation Event NFTs minted for verified environmental and conservation actions across Kenya and East Africa."
+}

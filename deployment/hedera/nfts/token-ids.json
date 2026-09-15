@@ -1,0 +1,50 @@
+{
+  "generated": "2026-09-14",
+  "network": "testnet",
+  "description": "KAI Nuvari HTS NFT Collection Registry",
+  "collections": {
+    "KCNFT": {
+      "name": "Conservation Event NFT",
+      "symbol": "KCNFT",
+      "tokenId": "0.0.10449914",
+      "type": "NON_FUNGIBLE_UNIQUE",
+      "maxSupply": null,
+      "purpose": "Minted for verified conservation actions — tree planting, forest patrols, CFA milestones",
+      "hashscanUrl": "https://hashscan.io/testnet/token/0.0.10449914",
+      "envKey": "NEXT_PUBLIC_CONNFT_TOKEN_ID",
+      "metadata": {
+        "schema": "HIP-412",
+        "fields": ["action_type", "location", "verified_by", "conservation_event_id", "timestamp"]
+      }
+    },
+    "KAIP": {
+      "name": "KAI Agent Passport",
+      "symbol": "KAIP",
+      "tokenId": "0.0.10450239",
+      "type": "NON_FUNGIBLE_UNIQUE",
+      "maxSupply": null,
+      "purpose": "On-chain W3C DID credential for registered KAI AI agents",
+      "hashscanUrl": "https://hashscan.io/testnet/token/0.0.10450239",
+      "envKey": "NEXT_PUBLIC_KAIP_NFT_TOKEN_ID",
+      "metadata": {
+        "schema": "HIP-412",
+        "fields": ["agent_did", "agent_name", "capabilities", "issued_at", "issuer"]
+      }
+    },
+    "KAIM": {
+      "name": "KAI Membership NFT",
+      "symbol": "KAIM",
+      "tokenId": "0.0.10450242",
+      "type": "NON_FUNGIBLE_UNIQUE",
+      "maxSupply": null,
+      "purpose": "Proof-of-membership for Chama, CFA, SACCO and SME participants",
+      "hashscanUrl": "https://hashscan.io/testnet/token/0.0.10450242",
+      "envKey": "NEXT_PUBLIC_KAIM_NFT_TOKEN_ID",
+      "tiers": ["Bronze", "Silver", "Gold", "Platinum"],
+      "metadata": {
+        "schema": "HIP-412",
+        "fields": ["tier", "member_account", "issued_at", "organisation_id"]
+      }
+    }
+  }
+}

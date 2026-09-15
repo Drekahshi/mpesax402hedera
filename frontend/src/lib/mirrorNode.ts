@@ -102,12 +102,12 @@ export async function getHtsTokenBalances(accountId: string): Promise<HtsTokenBa
     items.map(async (item: any) => {
       let symbol   = item.token_id;
       let name     = item.token_id;
-      let decimals = 0;
+      let decimals = typeof item.decimals === 'number' ? item.decimals : 0;
       try {
         const meta = await getTokenInfo(item.token_id);
-        symbol   = meta.symbol;
-        name     = meta.name;
-        decimals = meta.decimals;
+        symbol   = meta.symbol || symbol;
+        name     = meta.name || name;
+        if (typeof meta.decimals === 'number') decimals = meta.decimals;
       } catch {
         // token metadata unavailable — use defaults
       }

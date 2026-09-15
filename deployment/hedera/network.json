@@ -1,0 +1,20 @@
+{
+  "generated": "2026-09-14",
+  "network": "testnet",
+  "chainId": 296,
+  "hederaNetwork": "testnet",
+  "mirrorNodeUrl": "https://testnet.mirrornode.hedera.com",
+  "hashscanUrl": "https://hashscan.io/testnet",
+  "rpcUrl": "https://testnet.hashio.io/api",
+  "chainName": "Hedera Testnet",
+  "nativeCurrency": {
+    "name": "HBAR",
+    "symbol": "HBAR",
+    "decimals": 8
+  },
+  "hashpackNetworkConfig": {
+    "name": "testnet",
+    "description": "Hedera Testnet",
+    "type": "Testnet"
+  }
+}

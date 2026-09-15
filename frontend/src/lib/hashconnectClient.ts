@@ -25,6 +25,7 @@
 
 import type { HashConnect, SessionData, DappMetadata } from 'hashconnect';
 import { LedgerId, AccountId, TransferTransaction, TokenId, NftId, Hbar } from '@hashgraph/sdk';
+import { useKaiStore } from '@/store/useKaiStore';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -86,66 +87,84 @@ export function getHashPackState(): HashPackState {
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 /**
- * Initialise HashConnect. Safe to call multiple times — returns cached instance.
- * Must be called from a browser context.
+ * Initialise HashConnect with automatic recovery for stale or broken pairing sessions.
  */
-export async function initHashConnect(): Promise<HashConnect> {
+export async function initHashConnect(forceReset = false): Promise<HashConnect> {
   if (typeof window === 'undefined') {
     throw new Error('[HashConnect] Cannot initialise in SSR context');
   }
-  if (_instance) return _instance;
 
-  const { HashConnect } = await import('hashconnect');
-  const hc = new HashConnect(LEDGER_ID, PROJECT_ID, HASHCONNECT_APP_METADATA, false);
-  _instance = hc;
-
-  // ── Pairing approved ──────────────────────────────────────────────────────
-  hc.pairingEvent.on((sessionData: SessionData) => {
-    _session = sessionData;
-    try {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({
-        accountIds: sessionData.accountIds,
-        network:    sessionData.network,
-      }));
-    } catch { /* private browsing — ignore */ }
-    _setState({
-      connected:     true,
-      pairingString: null,
-      session: {
-        accountIds:    sessionData.accountIds,
-        network:       sessionData.network,
-        pairingString: null,
-      },
-    });
-    console.log('[HashConnect] Paired:', sessionData.accountIds);
-  });
-
-  // ── Disconnected ──────────────────────────────────────────────────────────
-  hc.disconnectionEvent.on(() => {
-    _session = null;
-    try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
-    _setState({ connected: false, session: null, pairingString: null });
-    console.log('[HashConnect] Disconnected');
-  });
-
-  // ── Connection status changed ─────────────────────────────────────────────
-  hc.connectionStatusChangeEvent.on((status) => {
-    console.log('[HashConnect] Status:', status);
-  });
-
-  // Initialise (establishes WalletConnect client, loads saved sessions)
-  await hc.init();
-
-  // Expose pairing string so the UI can render a QR code
-  const pairingString = hc.pairingString ?? null;
-  if (pairingString) {
-    _setState({ ..._state, pairingString });
+  if (forceReset) {
+    await disconnectHashPack();
+  } else if (_instance) {
+    return _instance;
   }
 
-  // Restore previously paired session from sessionStorage
-  _tryRestoreSession();
+  try {
+    const { HashConnect } = await import('hashconnect');
+    const hc = new HashConnect(LEDGER_ID, PROJECT_ID, HASHCONNECT_APP_METADATA, false);
+    _instance = hc;
 
-  return hc;
+    // ── Pairing approved ──────────────────────────────────────────────────────
+    hc.pairingEvent.on((sessionData: SessionData) => {
+      _session = sessionData;
+      const primaryAccount = sessionData.accountIds?.[0] ?? '';
+      try {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify({
+          accountIds: sessionData.accountIds,
+          network:    sessionData.network,
+        }));
+      } catch { /* private browsing — ignore */ }
+
+      _setState({
+        connected:     true,
+        pairingString: null,
+        session: {
+          accountIds:    sessionData.accountIds,
+          network:       sessionData.network,
+          pairingString: null,
+        },
+      });
+
+      if (primaryAccount) {
+        useKaiStore.getState().connectWallet('hashpack', primaryAccount);
+      }
+      console.log('[HashConnect] Paired:', sessionData.accountIds);
+    });
+
+    // ── Disconnected ──────────────────────────────────────────────────────────
+    hc.disconnectionEvent.on(() => {
+      _session = null;
+      try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+      _setState({ connected: false, session: null, pairingString: null });
+      useKaiStore.getState().disconnectWallet();
+      console.log('[HashConnect] Disconnected');
+    });
+
+    // ── Connection status changed ─────────────────────────────────────────────
+    hc.connectionStatusChangeEvent.on((status) => {
+      console.log('[HashConnect] Status:', status);
+    });
+
+    // Initialise (establishes WalletConnect client, loads saved sessions)
+    await hc.init();
+
+    // Expose pairing string
+    const pairingString = hc.pairingString ?? null;
+    if (pairingString) {
+      _setState({ ..._state, pairingString });
+    }
+
+    // Restore previously paired session from sessionStorage or state
+    _tryRestoreSession();
+
+    return hc;
+  } catch (err) {
+    console.warn('[HashConnect] Init error, performing session cleanup:', err);
+    _instance = null;
+    try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+    throw err;
+  }
 }
 
 function _tryRestoreSession() {
@@ -154,6 +173,7 @@ function _tryRestoreSession() {
     if (!raw) return;
     const saved = JSON.parse(raw) as { accountIds: string[]; network: string };
     if (saved.accountIds?.length) {
+      const primaryAccount = saved.accountIds[0];
       _setState({
         connected: true,
         session: {
@@ -162,6 +182,7 @@ function _tryRestoreSession() {
           pairingString: null,
         },
       });
+      useKaiStore.getState().connectWallet('hashpack', primaryAccount);
     }
   } catch { /* ignore */ }
 }
@@ -170,8 +191,6 @@ function _tryRestoreSession() {
 
 /**
  * Returns the current pairing string (QR code data) for connecting HashPack.
- * The HashPack browser extension detects the WalletConnect session automatically;
- * the pairing string is for mobile or cross-device use.
  */
 export async function pairWithHashPack(): Promise<string> {
   const hc = await initHashConnect();
@@ -184,22 +203,35 @@ export async function pairWithHashPack(): Promise<string> {
 }
 
 /**
- * Open the native HashPack pairing modal which triggers the browser extension.
+ * Open the native HashPack pairing modal with error resilience.
  */
 export async function openHashPackPairingModal(): Promise<void> {
-  const hc = await initHashConnect();
-  await hc.openPairingModal('dark', '#18291f', '#63b3ed', '#90cdf4', '16px');
+  try {
+    const hc = await initHashConnect();
+    await hc.openPairingModal('dark', '#18291f', '#63b3ed', '#90cdf4', '16px');
+  } catch (err) {
+    console.warn('[HashConnect] Pairing modal failed, resetting pairing session & retrying...', err);
+    const freshHc = await initHashConnect(true);
+    await freshHc.openPairingModal('dark', '#18291f', '#63b3ed', '#90cdf4', '16px');
+  }
 }
 
 /**
- * Disconnect the active HashPack session.
+ * Disconnect and clear active HashPack session.
  */
 export async function disconnectHashPack(): Promise<void> {
-  if (!_instance) return;
-  await _instance.disconnect();
+  if (_instance) {
+    try {
+      await _instance.disconnect();
+    } catch (e) {
+      console.warn('[HashConnect] Disconnect warning:', e);
+    }
+  }
+  _instance = null;
   _session = null;
   try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
   _setState({ connected: false, session: null, pairingString: null });
+  useKaiStore.getState().disconnectWallet();
 }
 
 // ── Transaction helpers ───────────────────────────────────────────────────────

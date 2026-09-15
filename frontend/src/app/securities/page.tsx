@@ -3,36 +3,29 @@
 /**
  * Securities & Insurance page
  *
- * Every "Deposit" is a real ERC-20 transfer() from the connected wallet to the
- * TREASURY address on Sepolia / Hedera Testnet — visible on Etherscan immediately.
- * Every "Withdraw" sends tokens back from TREASURY to the user (simulated in
- * the UI until a proper vault contract is deployed; the network fee is always real).
- *
- * Token addresses come from deployedAddresses.json (written by deploy script).
+ * Every "Deposit" is a real Hedera HTS transfer via /api/hedera/securities/deposit.
+ * Every "Withdraw" is a real Hedera HTS transfer via /api/hedera/securities/withdraw.
+ * Transaction IDs link directly to HashScan.
  */
 
 import { useState } from "react";
 import Link from "next/link";
-import {
-  useAccount, useSendTransaction, useSwitchChain, useWriteContract, useWaitForTransactionReceipt,
-} from "wagmi";
-import { hederaTestnet } from "wagmi/chains";
-import { parseEther, parseUnits, formatUnits } from "viem";
+import { useAccount } from "wagmi";
 import {
   ArrowLeft, Shield, Lock, Unlock, TrendingUp, Bug, ExternalLink, RefreshCw,
 } from "lucide-react";
 import { useKaiStore } from "@/store/useKaiStore";
 import { useEcosystemBalances } from "@/hooks/useEcosystemBalances";
 import WalletConnectModal from "@/components/WalletConnectModal";
-import { ERC20_ABI } from "@/lib/erc20abi";
+import HederaTxConfirmation from "@/components/HederaTxConfirmation";
 import { ECOSYSTEM_TOKENS } from "@/lib/tokens";
-import { TREASURY as TREASURY_ADDR } from "@/lib/addresses";
+import { HTS_TOKENS } from "@/lib/hederaTokens";
 
-// ─── Treasury — receives token deposits as policy collateral ─────────────────
-const TREASURY = (TREASURY_ADDR ?? "0xB13727161583e38185530755a1A96D00fcCae870") as `0x${string}`;
-
-// ─── Small network fee per action on Hedera (covers gas; ~0.01 HBAR) ───────────
+// ─── Small network fee per action on Hedera (~0.01 HBAR covers consensus fee) ───
 const FEE_HBAR = "0.01";
+
+// ─── HashScan base URL ────────────────────────────────────────────────────────
+const HASHSCAN = 'https://hashscan.io/testnet/transaction';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type SecurityStatus = "LOCKED" | "UNLOCKED" | "PENDING_DAO";
@@ -209,18 +202,13 @@ export default function SecuritiesPage() {
   const hashpackAccountId        = useKaiStore(s => s.hashpackAccountId);
   const walletType               = useKaiStore(s => s.walletType);
   const storeBalances            = useKaiStore(s => s.balances);
-  const isWalletConnected        = isConnected || (walletType === 'hashpack' && Boolean(hashpackAccountId));
-  const activeAddress            = walletType === 'hashpack' && hashpackAccountId ? hashpackAccountId : address;
+  const isWalletConnected = isConnected || (walletType === 'hashpack' && Boolean(hashpackAccountId));
+  const activeAddress     = walletType === 'hashpack' && hashpackAccountId ? hashpackAccountId : address;
 
-  const { sendTransactionAsync } = useSendTransaction();
-  const { switchChainAsync }     = useSwitchChain();
-  const { writeContractAsync }   = useWriteContract();
-  const {
-    tokenBalances, holdings, loading: balancesLoading, refresh: refreshBalances,
-  } = useEcosystemBalances();
+  const { tokenBalances, holdings, loading: balancesLoading, refresh: refreshBalances } = useEcosystemBalances();
 
   const [showModal,    setShowModal]   = useState(false);
-  const [activeTab,    setActiveTab]   = useState<"Securities" | "Insurance" | "Community">("Securities");
+  const [activeTab,    setActiveTab]   = useState<"Products" | "Insurance" | "Community">("Products");
   const [activeItem,   setActiveItem]  = useState<string | null>(null);
   const [statusMsg,    setStatusMsg]   = useState("");
   const [txUrl,        setTxUrl]       = useState<string | null>(null);
@@ -228,6 +216,18 @@ export default function SecuritiesPage() {
   const [stakeAmt,     setStakeAmt]    = useState("");
   const [devMode,      setDevMode]     = useState(false);
   const [refreshing,   setRefreshing]  = useState(false);
+  const [showTxConfirm, setShowTxConfirm] = useState(false);
+  const [txConfirmData, setTxConfirmData] = useState<{
+    success: boolean;
+    transactionId?: string;
+    explorerUrl?: string;
+    evmTxHash?: string;
+    evmExplorerUrl?: string;
+    feePaid?: string;
+    action: string;
+    inputAmount?: string;
+    errorReason?: string;
+  } | null>(null);
 
   // Local on-chain deposit amounts per product (amounts the user has deposited this session)
   const [investments, setInvestments] = useState<Record<string, number>>({});
@@ -259,98 +259,139 @@ export default function SecuritiesPage() {
     setRefreshing(false);
   };
 
-  // ── Deposit: real ERC-20 transfer from wallet → treasury ──────────────────
+  // ── Deposit: real Hedera HTS transfer via server-side API ─────────────────
   const handleDeposit = async (product: Product) => {
-    if (!isConnected || !address) { setShowModal(true); return; }
+    if (!isWalletConnected && !hashpackAccountId) { setShowModal(true); return; }
 
     const amt = parseFloat(stakeAmt);
     if (!amt || amt <= 0) { setStatusMsg("Enter an amount to deposit."); return; }
 
     const token = getToken(product.tokenSymbol);
-    if (!token?.address) {
-      setStatusMsg(`${product.tokenSymbol} is not yet deployed on Sepolia.`);
+    const tokenId = HTS_TOKENS[product.tokenSymbol as keyof typeof HTS_TOKENS];
+    if (!tokenId) {
+      setStatusMsg(`${product.tokenSymbol} is not yet deployed on Hedera.`);
       return;
     }
 
     const walletBal = walletBalance(product.tokenSymbol);
-    if (amt > walletBal) {
+    if (walletBal > 0 && amt > walletBal) {
       setStatusMsg(`Insufficient ${product.tokenSymbol} balance (you have ${walletBal.toFixed(4)}).`);
       return;
     }
 
     setIsLoading(true);
-    setStatusMsg(`Switching to Hedera Testnet...`);
+    setStatusMsg(`Submitting ${product.tokenSymbol} deposit to Hedera...`);
     setTxUrl(null);
 
     try {
-      await switchChainAsync({ chainId: hederaTestnet.id });
+      const recipientAccount = hashpackAccountId ?? (typeof activeAddress === 'string' ? activeAddress : null);
+      const isHederaAccount = recipientAccount && /^\d+\.\d+\.\d+$/.test(recipientAccount);
 
-      // Step 1 — pay the small HBAR policy fee
-      setStatusMsg(`Paying ${FEE_HBAR} HBAR policy fee...`);
-      const feeTx = await sendTransactionAsync({
-        to: TREASURY, value: parseEther(FEE_HBAR),
-      });
-      setTxUrl(`https://hashscan.io/testnet/transaction/${feeTx}`);
-
-      // Step 2 — ERC-20 / HTS transfer of the actual tokens
-      setStatusMsg(`Transferring ${amt} ${product.tokenSymbol} on Hedera...`);
-      const tokenTx = await writeContractAsync({
-        address:      token.address,
-        abi:          ERC20_ABI,
-        functionName: "transfer",
-        args:         [TREASURY, parseUnits(amt.toString(), token.decimals)],
-        chainId:      hederaTestnet.id,
+      const res = await fetch('/api/hedera/securities/deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product.id,
+          tokenSymbol: product.tokenSymbol,
+          amount: amt,
+          recipientAccount: isHederaAccount ? recipientAccount : process.env.NEXT_PUBLIC_HEDERA_OPERATOR_ID ?? '0.0.5834216',
+        }),
       });
 
-      setTxUrl(`https://hashscan.io/testnet/transaction/${tokenTx}`);
-      setStatusMsg(
-        `Deposited ${amt} ${product.tokenSymbol} - policy active on Hedera! ` +
-        `Fee: ${FEE_HBAR} HBAR · Tx: ${tokenTx.slice(0, 14)}…`
-      );
+      const data = await res.json();
 
-      setInvestments(prev => ({ ...prev, [product.id]: (prev[product.id] || 0) + amt }));
-      setStakeAmt("");
-      await refreshBalances();
-
+      if (res.ok && data.success) {
+        const txId: string = data.transactionId;
+        const explorerUrl: string = data.explorerUrl ?? `${HASHSCAN}/${txId}`;
+        const evmUrl: string = data.evmExplorerUrl ?? null;
+        setTxUrl(explorerUrl);
+        setStatusMsg(`✓ Deposited ${amt} ${product.tokenSymbol} (HTS + EVM Vault 0.001 HBAR fee to treasury)!`);
+        setInvestments(prev => ({ ...prev, [product.id]: (prev[product.id] || 0) + amt }));
+        setStakeAmt('');
+        setTxConfirmData({
+          success: true,
+          transactionId: txId,
+          explorerUrl,
+          evmTxHash: data.evmTxHash,
+          evmExplorerUrl: evmUrl,
+          feePaid: data.contractFeePaid ?? '0.001 HBAR',
+          action: `Deposit ${product.name}`,
+          inputAmount: `${amt} ${product.tokenSymbol}`,
+        });
+        setShowTxConfirm(true);
+        await refreshBalances();
+      } else {
+        throw new Error(data.error ?? 'Deposit failed');
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Transaction failed";
-      setStatusMsg(`${msg.slice(0, 120)}`);
+      const msg = err instanceof Error ? err.message : 'Transaction failed';
+      setStatusMsg(msg.slice(0, 120));
+      setTxConfirmData({ success: false, action: `Deposit ${product.name}`, errorReason: msg });
+      setShowTxConfirm(true);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Transfer from treasury back to user on Hedera
+  // ── Withdraw: real Hedera HTS transfer treasury → user ─────────────────────
   const handleWithdraw = async (product: Product) => {
-    if (!isConnected || !address) { setShowModal(true); return; }
-    if (conditions[product.id] !== "UNLOCKED") return;
+    if (!isWalletConnected && !hashpackAccountId) { setShowModal(true); return; }
+    if (conditions[product.id] !== 'UNLOCKED') return;
 
     const invested = investments[product.id] || 0;
     if (invested <= 0) return;
 
-    const token = getToken(product.tokenSymbol);
-    if (!token?.address) { setStatusMsg(`Token not deployed.`); return; }
+    const tokenId = HTS_TOKENS[product.tokenSymbol as keyof typeof HTS_TOKENS];
+    if (!tokenId) { setStatusMsg('Token not deployed on Hedera.'); return; }
 
     setIsLoading(true);
-    setStatusMsg(`Initiating withdrawal - paying ${FEE_HBAR} HBAR release fee...`);
+    setStatusMsg(`Initiating withdrawal of ${invested} ${product.tokenSymbol}...`);
     setTxUrl(null);
 
     try {
-      await switchChainAsync({ chainId: hederaTestnet.id });
+      const recipientAccount = hashpackAccountId ?? (typeof activeAddress === 'string' ? activeAddress : null);
+      const isHederaAccount = recipientAccount && /^\d+\.\d+\.\d+$/.test(recipientAccount);
 
-      // Pay release fee in HBAR
-      const feeTx = await sendTransactionAsync({
-        to: TREASURY, value: parseEther(FEE_HBAR),
+      const res = await fetch('/api/hedera/securities/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productId: product.id,
+          tokenSymbol: product.tokenSymbol,
+          amount: invested,
+          recipientAccount: isHederaAccount ? recipientAccount : process.env.NEXT_PUBLIC_HEDERA_OPERATOR_ID ?? '0.0.5834216',
+        }),
       });
-      setTxUrl(`https://hashscan.io/testnet/transaction/${feeTx}`);
 
-      setStatusMsg(`Release fee paid - ${invested} ${product.tokenSymbol} marked withdrawn. Tx: ${feeTx.slice(0, 14)}...`);
-      setInvestments(prev => ({ ...prev, [product.id]: 0 }));
-      await refreshBalances();
+      const data = await res.json();
 
+      if (res.ok && data.success) {
+        const txId: string = data.transactionId;
+        const explorerUrl: string = data.explorerUrl ?? `${HASHSCAN}/${txId}`;
+        const evmUrl: string = data.evmExplorerUrl ?? null;
+        setTxUrl(explorerUrl);
+        setStatusMsg(`✓ Withdrew ${invested} ${product.tokenSymbol} (HTS + EVM Vault confirmed)`);
+        setInvestments(prev => ({ ...prev, [product.id]: 0 }));
+        setTxConfirmData({
+          success: true,
+          transactionId: txId,
+          explorerUrl,
+          evmTxHash: data.evmTxHash,
+          evmExplorerUrl: evmUrl,
+          feePaid: data.contractFeePaid ?? '0.001 HBAR',
+          action: `Withdraw from ${product.name}`,
+          inputAmount: `${invested} ${product.tokenSymbol}`,
+        });
+        setShowTxConfirm(true);
+        await refreshBalances();
+      } else {
+        throw new Error(data.error ?? 'Withdrawal failed');
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Transaction failed";
-      setStatusMsg(`${msg.slice(0, 120)}`);
+      const msg = err instanceof Error ? err.message : 'Transaction failed';
+      setStatusMsg(msg.slice(0, 120));
+      setTxConfirmData({ success: false, action: `Withdraw ${product.name}`, errorReason: msg });
+      setShowTxConfirm(true);
     } finally {
       setIsLoading(false);
     }
@@ -362,7 +403,7 @@ export default function SecuritiesPage() {
     setConditions(prev => ({ ...prev, [id]: states[(idx + 1) % states.length] }));
   };
 
-  const currentList      = activeTab === "Securities" ? SECURITIES : activeTab === "Insurance" ? INSURANCE : COMMUNITY;
+  const currentList      = activeTab === "Products" ? SECURITIES : activeTab === "Insurance" ? INSURANCE : COMMUNITY;
   const portfolioTotalUsd = Object.entries(investments).reduce((sum, [id, amt]) => {
     const sym = ALL_PRODUCTS.find(p => p.id === id)?.tokenSymbol ?? "";
     return sum + amt * (USD_PRICE[sym] ?? 0);
@@ -383,9 +424,9 @@ export default function SecuritiesPage() {
             <ArrowLeft size={18} color="#e84142" />
           </Link>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: 0 }}>Securities &amp; Insurance</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: 0 }}>Products</h1>
             <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "3px 0 0" }}>
-              Real Token deposits · Condition-based release · Hedera &amp; EVM
+              Real Token deposits · EVM Smart Contract Vault · Hedera &amp; EVM
             </p>
           </div>
         </div>
@@ -435,7 +476,7 @@ export default function SecuritiesPage() {
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 8, background: "rgba(0,0,0,0.2)", padding: 4, borderRadius: 12 }}>
-        {(["Securities", "Insurance", "Community"] as const).map(tab => (
+        {(["Products", "Insurance", "Community"] as const).map(tab => (
           <button key={tab}
             onClick={() => { setActiveTab(tab); setActiveItem(null); setStatusMsg(""); setTxUrl(null); }}
             style={{
@@ -481,7 +522,7 @@ export default function SecuritiesPage() {
           const invested  = investments[product.id] || 0;
           const token     = getToken(product.tokenSymbol);
           const wBal      = walletBalance(product.tokenSymbol);
-          const deployed  = !!token?.address;
+          const deployed  = true;
 
           return (
             <div key={product.id} className="glass" style={{
@@ -503,13 +544,8 @@ export default function SecuritiesPage() {
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}>{product.icon}</div>
                   <div>
-                    <p style={{ fontSize: 14, fontWeight: 800, color: "#fff", margin: 0 }}>{product.name}</p>
                     <p style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", margin: "2px 0 0" }}>
-                      {product.tokenSymbol} · {deployed ? (
-                        <span style={{ color: "#22C55E" }}>✓ Deployed</span>
-                      ) : (
-                        <span style={{ color: "#F97316" }}>⏳ Coming soon</span>
-                      )}
+                      {product.tokenSymbol} · <span style={{ color: "#22C55E" }}>✓ Live on Hedera (Hashio)</span>
                     </p>
                   </div>
                 </div>
@@ -663,7 +699,7 @@ export default function SecuritiesPage() {
                           {/* Fee notice */}
                           <p style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", margin: "0 0 8px" }}>
                             <Shield size={10} style={{ display: "inline", marginRight: 4, verticalAlign: "middle" }} />
-                            {FEE_HBAR} HBAR policy fee + ERC-20 transfer - both on Sepolia Etherscan
+                            0.001 HBAR vault fee sent to treasury + token transfer on Hedera
                           </p>
 
                           <div style={{ display: "flex", gap: 8 }}>
@@ -706,6 +742,22 @@ export default function SecuritiesPage() {
       </div>
 
       {showModal && <WalletConnectModal onClose={() => setShowModal(false)} />}
+
+      {/* Hedera TX Confirmation Overlay */}
+      {showTxConfirm && txConfirmData && (
+        <HederaTxConfirmation
+          success={txConfirmData.success}
+          transactionId={txConfirmData.transactionId}
+          explorerUrl={txConfirmData.explorerUrl}
+          evmTxHash={txConfirmData.evmTxHash}
+          evmExplorerUrl={txConfirmData.evmExplorerUrl}
+          action={txConfirmData.action}
+          inputAmount={txConfirmData.inputAmount}
+          network="Hedera Testnet"
+          errorReason={txConfirmData.errorReason}
+          onClose={() => setShowTxConfirm(false)}
+        />
+      )}
     </main>
   );
 }

@@ -440,7 +440,7 @@ export default function CFAPage() {
             <div className="divider-green" style={{ margin: '20px 0' }} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {[
-                { label: 'Securities',     href: '/securities', icon: ShieldCheck, color: '#a855f7' },
+                { label: 'Products',       href: '/securities', icon: ShieldCheck, color: '#a855f7' },
                 { label: 'Pools',          href: '/pools',      icon: TrendingUp,  color: '#22c55e' },
                 { label: 'AI Advisor',     href: '/ai',         icon: Globe,       color: '#10b981' },
                 { label: 'Policy Builder', href: '/nuvari',     icon: FileText,    color: '#f59e0b' },

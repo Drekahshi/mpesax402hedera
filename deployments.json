@@ -1,27 +1,48 @@
 {
-  "network": "localhost",
-  "chainId": 31337,
-  "deployedAt": null,
-  "deployer": null,
-  "explorerBase": "https://sepolia.etherscan.io",
+  "network": "hederaTestnet",
+  "chainId": 296,
+  "deployedAt": "2026-09-15T05:34:08.761Z",
+  "deployer": "0xB13727161583e38185530755a1A96D00fcCae870",
+  "explorerBase": "https://hashscan.io/testnet",
   "contracts": {
-    "nuvariToken": {
-      "address": "0x0000000000000000000000000000000000000000",
-      "name": "NuvariToken",
-      "symbol": "NVR",
-      "decimals": 18,
-      "cap": "50000000",
-      "initialSupply": "50000000",
-      "explorer": ""
-    },
     "conservationNFT": {
-      "address": "0x0000000000000000000000000000000000000000",
+      "address": "0xe62092be427e2a685507753f06eb380d76eb41b8",
       "name": "ConservationNFT",
       "symbol": "KNFT",
       "mintPrice": "0.001",
       "mintPriceWei": "1000000000000000",
-      "maxSupply": 105,
-      "explorer": ""
+      "maxSupply": 1000,
+      "explorer": "https://hashscan.io/testnet/contract/0xe62092be427e2a685507753f06eb380d76eb41b8"
+    },
+    "amm": {
+      "address": "0xe3a47aa48a282d2761a00696ccd3d058b21318b8",
+      "explorer": "https://hashscan.io/testnet/contract/0xe3a47aa48a282d2761a00696ccd3d058b21318b8"
+    },
+    "airdropVault": {
+      "address": "0x5e882eb3021061a2e4601ce373422024afb65115",
+      "explorer": "https://hashscan.io/testnet/contract/0x5e882eb3021061a2e4601ce373422024afb65115"
+    },
+    "agentRegistry": {
+      "address": "0xe43ce3d976a87d9e52baed9ac5e09065403e5705",
+      "explorer": "https://hashscan.io/testnet/contract/0xe43ce3d976a87d9e52baed9ac5e09065403e5705"
+    },
+    "escrow": {
+      "address": "0xc540136c299a5585ca58915b0ce08accc51bf8b1",
+      "explorer": "https://hashscan.io/testnet/contract/0xc540136c299a5585ca58915b0ce08accc51bf8b1"
+    },
+    "productVault": {
+      "address": "0x986bd652d5d99883d6e06142e95dab59f056c172",
+      "name": "KaiProductVault",
+      "fee": "0.001",
+      "treasury": "0xB13727161583e38185530755a1A96D00fcCae870",
+      "explorer": "https://hashscan.io/testnet/contract/0x986bd652d5d99883d6e06142e95dab59f056c172"
+    },
+    "productMarket": {
+      "address": "0x48179014607b26adbacac6e5c6aea7d7610ddb97",
+      "name": "KaiProductMarket",
+      "fee": "0.001",
+      "treasury": "0xB13727161583e38185530755a1A96D00fcCae870",
+      "explorer": "https://hashscan.io/testnet/contract/0x48179014607b26adbacac6e5c6aea7d7610ddb97"
     }
   }
 }

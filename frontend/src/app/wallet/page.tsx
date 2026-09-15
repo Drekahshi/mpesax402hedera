@@ -15,6 +15,7 @@ import { useNFTs } from '@/hooks/useNFTs';
 import { ECOSYSTEM_TOKENS, ETH_CONFIG, EXPLORER_BASE, formatTokenAmount } from '@/lib/tokens';
 import { ERC20_ABI } from '@/lib/erc20abi';
 import { useKaiStore } from '@/store/useKaiStore';
+import { useEcosystemBalances } from '@/hooks/useEcosystemBalances';
 
 /* ── shared styles ── */
 const Rs: React.CSSProperties = { textShadow: '0 1px 4px rgba(0,0,0,0.88)' };
@@ -61,6 +62,7 @@ export default function WalletDashboard() {
 
   const storeBalances = useKaiStore(s => s.balances);
   const claimFaucet = useKaiStore(s => s.claimFaucet);
+  const { tokenBalances: ecoBalances, refresh: refreshEco } = useEcosystemBalances();
   const [faucetLoading, setFaucetLoading] = useState(false);
   const [faucetSuccess, setFaucetSuccess] = useState<string | null>(null);
 
@@ -69,11 +71,12 @@ export default function WalletDashboard() {
     ECOSYSTEM_TOKENS.forEach((t, i) => {
       const r = tokenData?.[i];
       const onChain = r?.status === 'success' && r.result !== undefined ? Number(formatUnits(r.result as bigint, t.decimals)) : 0;
+      const ecoVal = ecoBalances?.[t.symbol] ?? 0;
       const storeVal = storeBalances[t.symbol.toLowerCase() as keyof typeof storeBalances] || 0;
-      out[t.symbol] = onChain || storeVal;
+      out[t.symbol] = onChain || ecoVal || storeVal;
     });
     return out;
-  }, [tokenData, storeBalances]);
+  }, [tokenData, ecoBalances, storeBalances]);
 
   const ethAmt = (ethBal ? Number(formatUnits(ethBal.value, ethBal.decimals)) : 0) || storeBalances.eth || storeBalances.hbar || 0;
 
@@ -193,7 +196,7 @@ export default function WalletDashboard() {
           <div>
             <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.4, textTransform: 'uppercase', color: 'rgba(255,255,255,0.48)', margin: 0 }}>Kainovari Wallet</p>
             <h1 style={{ fontSize: 26, fontWeight: 900, margin: '4px 0 0', letterSpacing: -0.5, ...Rs }}>
-              Hello, <span style={{ color: '#34d399' }}>{name?.split(' ')[0] || 'Member'}</span> 👋
+              <span style={{ color: '#34d399' }}>KAI</span> Wallet
             </h1>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
