@@ -183,14 +183,25 @@ async def get_hcs_messages(topic_id: str, limit: int = 25) -> list[dict]:
 # we will add in task 12 call into hederaClient.ts). This keeps the private key
 # in the TypeScript/Next.js process and out of Python.
 
-OPERATOR_API_BASE = os.getenv("AGENT_BASE_URL", "http://127.0.0.1:3000")
+# NOTE: deliberately NOT the same var as agents/identity.py's AGENT_BASE_URL
+# (that one is this agent's own public service endpoint, default :8000).
+# This one is the Next.js server holding the real operator key, default :3000.
+OPERATOR_API_BASE = os.getenv("NEXTJS_OPERATOR_URL", "http://127.0.0.1:3000")
+INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "")
 
 
 async def _operator_post(path: str, body: dict) -> dict:
     """POST to the KAI Next.js API operator endpoint."""
     url = f"{OPERATOR_API_BASE}{path}"
     async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.post(url, json=body, headers={"Content-Type": "application/json"})
+        r = await client.post(
+            url,
+            json=body,
+            headers={
+                "Content-Type": "application/json",
+                "X-Internal-Key": INTERNAL_SERVICE_KEY,
+            },
+        )
         r.raise_for_status()
         return r.json()
 
