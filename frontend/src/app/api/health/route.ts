@@ -35,8 +35,8 @@ export async function GET() {
     } else {
       status.details += `FastAPI health returned status ${ragRes.status}. `;
     }
-  } catch (e: any) {
-    status.details += `FastAPI offline: ${e.message || e}. `;
+  } catch (e) {
+    status.details += `FastAPI offline: ${e instanceof Error ? e.message : e}. `;
   }
 
   // 2. Check Groq API Health
@@ -61,8 +61,8 @@ export async function GET() {
       } else {
         status.details += `Groq API returned status ${groqRes.status}. `;
       }
-    } catch (e: any) {
-      status.details += `Groq offline: ${e.message || e}. `;
+    } catch (e) {
+      status.details += `Groq offline: ${e instanceof Error ? e.message : e}. `;
     }
   } else {
     status.details += 'GROQ_API_KEY not set. ';

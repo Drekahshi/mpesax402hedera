@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, useContext } from 'react';
 import type { Address } from 'viem';
 import { sepolia } from 'wagmi/chains';
 import { createWalletClient, custom } from 'viem';
@@ -37,7 +37,7 @@ export interface PrivyAuthValue {
   login: (() => Promise<void>) | (() => void);
   logout: () => Promise<void> | void;
   createWallet: () => Promise<void> | void;
-  connectWallet: (...args: any[]) => Promise<void> | void;
+  connectWallet: (...args: unknown[]) => Promise<void> | void;
   getTokenBalance: (tokenAddress: Address, decimals?: number) => Promise<bigint>;
   sendToken: (params: { tokenAddress: Address; to: Address; amount: bigint }) => Promise<string | { hash: Address }>;
   claimAirdrop: (params: { vault: Address; amount: bigint; proof: `0x${string}`[] }) => Promise<string | { hash: Address }>;

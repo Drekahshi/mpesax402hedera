@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getHederaClient, transferHbar, transferHts, mintHtsToken } from '@/lib/hederaClient';
+import { transferHbar, transferHts, mintHtsToken } from '@/lib/hederaClient';
 import { HTS_TOKENS } from '@/lib/hederaTokens';
 import { logHcsEvent, type HcsEventType } from '@/lib/hcsAudit';
 
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
         const htsRes = await transferHts(tokenId, cleanRecipient, toAmount);
         txId = htsRes.transactionId;
         explorerUrl = htsRes.explorerUrl;
-      } catch (transferErr: any) {
+      } catch {
         // If transfer from treasury has issue (e.g. low balance), mint directly on-chain
         const mintRes = await mintHtsToken(tokenId, cleanRecipient, toAmount, is6Decimals ? 6 : 8);
         txId = mintRes.transactionId;
@@ -126,10 +126,10 @@ export async function POST(req: NextRequest) {
       onChain: true,
       timestamp: new Date().toISOString(),
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error('Swap API error:', err);
     return NextResponse.json(
-      { error: err?.message || 'Failed to execute on-chain swap on Hedera Testnet' },
+      { error: err instanceof Error ? err.message : 'Failed to execute on-chain swap on Hedera Testnet' },
       { status: 500 },
     );
   }

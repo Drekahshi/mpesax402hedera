@@ -30,7 +30,7 @@ export const hederaTestnetChain = defineChain({
 });
 
 export const KAI_PRODUCT_VAULT_ADDRESS =
-  ((deployedAddresses as any)?.productVault as Address) ||
+  (deployedAddresses?.productVault as Address) ||
   '0x718ca1bac5dc627925f7fcda9df26ebe4869d02b';
 
 export const KAI_PRODUCT_VAULT_ABI = [
@@ -224,7 +224,7 @@ export async function executeContractEcosystemAction({
 }
 
 export const KAI_PRODUCT_MARKET_ADDRESS =
-  ((deployedAddresses as any)?.productMarket as Address) ||
+  (deployedAddresses?.productMarket as Address) ||
   '0x11a6beeaa77173f2fbf715bec73b3c223ac2cf14';
 
 export const KAI_PRODUCT_MARKET_ABI = [

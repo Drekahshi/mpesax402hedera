@@ -11,7 +11,8 @@
 import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/db';
 
-let PrivyClient: any = null;
+type PrivyClientInstance = InstanceType<typeof import('@privy-io/server-auth').PrivyClient>;
+let PrivyClient: PrivyClientInstance | null = null;
 
 async function getPrivyClient() {
   if (PrivyClient) return PrivyClient;

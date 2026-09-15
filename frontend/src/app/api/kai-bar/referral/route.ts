@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getPrisma } from '@/lib/db';
+import type { PrismaClient } from '@prisma/client';
 
 /**
  * /api/kai-bar/referral  —  GET + POST
@@ -77,14 +78,14 @@ export async function GET(req: Request) {
       code: user.referralCode,
       stats: { direct: firstIds.length, active, networkSize },
     });
-  } catch (e: any) {
+  } catch (e) {
     console.error('[kai-bar/referral] failed', e);
     return NextResponse.json({ error: 'Failed to load referral info' }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
-  let body: any = {};
+  let body: Record<string, unknown> = {};
   try {
     body = await req.json();
   } catch {
@@ -170,7 +171,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ ok: true, referrerName: referrer.name });
-  } catch (e: any) {
+  } catch (e) {
     console.error('[kai-bar/referral] failed', e);
     return NextResponse.json({ error: 'Failed to apply referral' }, { status: 500 });
   }

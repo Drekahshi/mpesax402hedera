@@ -42,7 +42,7 @@ export async function GET(req: Request) {
         completed: completedIds.has(t.id),
       })),
     });
-  } catch (e: any) {
+  } catch (e) {
     console.error('[kai-bar/tasks] failed', e);
     return NextResponse.json({ error: 'Failed to load tasks' }, { status: 500 });
   }

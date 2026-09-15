@@ -55,7 +55,9 @@ export const CHAIN_IDS = {
 interface Eip1193Provider {
   isMetaMask?: boolean;
   providers?: Eip1193Provider[];
-  request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+  request(args: { method: string; params?: unknown[] }): Promise<string>;
+  on(event: string, handler: (hex: string) => void): void;
+  removeListener?(event: string, handler: (hex: string) => void): void;
 }
 
 function getProvider(): Eip1193Provider | null {
@@ -128,8 +130,8 @@ export async function switchToSepolia(): Promise<void> {
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: SEPOLIA_CHAIN.chainId }],
     });
-  } catch (err: any) {
-    if (err?.code === 4902) {
+  } catch (err) {
+    if (err && typeof err === 'object' && 'code' in err && err.code === 4902) {
       await provider.request({
         method: 'wallet_addEthereumChain',
         params: [SEPOLIA_CHAIN],

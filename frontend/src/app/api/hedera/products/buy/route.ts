@@ -77,8 +77,8 @@ export async function POST(req: NextRequest) {
         quantity: parsedQty,
         totalPrice: totalPrice ? parseFloat(String(totalPrice)) : undefined,
       });
-    } catch (contractErr: any) {
-      console.warn('[products/buy] Contract buy warning:', contractErr?.message ?? contractErr);
+    } catch (contractErr) {
+      console.warn('[products/buy] Contract buy warning:', contractErr instanceof Error ? contractErr.message : contractErr);
     }
 
     // ── 2. Transfer Product Token Allocation via Hedera HTS ───────────────────

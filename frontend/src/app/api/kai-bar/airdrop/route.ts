@@ -56,7 +56,7 @@ export async function GET(req: Request) {
       status: user.status,
       onChain: AIRDROP_VAULT_ADDRESS ? { vault: AIRDROP_VAULT_ADDRESS } : null,
     });
-  } catch (e: any) {
+  } catch (e) {
     console.error('[kai-bar/airdrop] failed', e);
     return NextResponse.json({ error: 'Failed to load airdrop status' }, { status: 500 });
   }

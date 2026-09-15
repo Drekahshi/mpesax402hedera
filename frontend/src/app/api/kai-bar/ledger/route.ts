@@ -43,7 +43,7 @@ export async function GET(req: Request) {
         createdAt: e.createdAt.toISOString(),
       })),
     });
-  } catch (e: any) {
+  } catch (e) {
     console.error('[kai-bar/ledger] failed', e);
     return NextResponse.json({ error: 'Failed to load ledger' }, { status: 500 });
   }

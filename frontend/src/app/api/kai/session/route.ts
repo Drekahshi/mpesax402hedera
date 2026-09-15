@@ -18,7 +18,7 @@ import { getPrisma } from '@/lib/db';
  * embedded wallet's public address.
  */
 export async function POST(req: Request) {
-  let body: any = {};
+  let body: Record<string, unknown> = {};
   try {
     body = await req.json();
   } catch {
@@ -49,8 +49,8 @@ export async function POST(req: Request) {
       include: { wallets: true },
     });
 
-    const name = body.name || 'KAI Member';
-    const email = body.email;
+    const name = body.name ? String(body.name) : 'KAI Member';
+    const email = body.email ? String(body.email) : undefined;
 
     let user = existing;
     let isNew = false;
@@ -133,7 +133,7 @@ export async function POST(req: Request) {
       referralApplied,
       referralCode,
     });
-  } catch (e: any) {
+  } catch (e) {
     console.error('[kai/session] failed', e);
     return NextResponse.json({ error: 'Failed to link account' }, { status: 500 });
   }

@@ -42,9 +42,10 @@ export async function POST(req: NextRequest) {
         txId: hbarRes.transactionId,
         explorerUrl: hbarRes.explorerUrl,
       };
-    } catch (e: any) {
-      console.warn('Faucet HBAR notice:', e?.message || e);
-      results['HBAR'] = { status: `FAILED: ${e?.message || e}` };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn('Faucet HBAR notice:', msg);
+      results['HBAR'] = { status: `FAILED: ${msg}` };
     }
 
     // 2. Transfer or mint each HTS token
@@ -67,8 +68,9 @@ export async function POST(req: NextRequest) {
             txId: mintRes.transactionId,
             explorerUrl: mintRes.explorerUrl,
           };
-        } catch (mintErr: any) {
-          results[sym] = { status: `FAILED: ${mintErr?.message || mintErr}` };
+        } catch (mintErr) {
+          const msg = mintErr instanceof Error ? mintErr.message : String(mintErr);
+          results[sym] = { status: `FAILED: ${msg}` };
         }
       }
     }
@@ -93,10 +95,10 @@ export async function POST(req: NextRequest) {
       onChain: true,
       message: `Successfully dispensed on-chain tokens to ${cleanAccount} on Hedera Testnet!`,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error('Faucet error:', err);
     return NextResponse.json(
-      { error: err?.message || 'Failed to dispense faucet tokens' },
+      { error: err instanceof Error ? err.message : 'Failed to dispense faucet tokens' },
       { status: 500 },
     );
   }

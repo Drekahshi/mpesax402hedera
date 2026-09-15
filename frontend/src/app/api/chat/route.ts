@@ -8,7 +8,6 @@ const RAG_API_URL  = process.env.RAG_API_URL    || 'http://localhost:8000';
 const GROQ_API_KEY = process.env.GROQ_API_KEY    || '';
 const GROQ_MODEL   = process.env.GROQ_MODEL      || 'llama-3.1-8b-instant';
 const GROQ_URL     = 'https://api.groq.com/openai/v1/chat/completions';
-const GEMINI_KEY   = process.env.GEMINI_API_KEY  || '';
 
 // ── Built-in KAI knowledge base (fallback when all LLMs are offline) ──────────
 const KAI_KB: { match: RegExp; answer: string }[] = [

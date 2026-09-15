@@ -3,16 +3,18 @@ import { walletAddress } from '@/lib/addresses';
 
 export type OpCategory = "transaction" | "query" | "template" | "quick" | "automation";
 
+export type OpFieldValue = string | number | boolean;
+
 export interface OpField {
   key: string; label: string; type: "text" | "number" | "select" | "boolean" | "textarea";
-  default: any; options?: string[]; hint?: string; required?: boolean;
+  default: OpFieldValue; options?: string[]; hint?: string; required?: boolean;
 }
 
 export interface Operation {
   id: string; name: string; category: OpCategory;
   service: "insurance" | "trust" | "pension" | "all";
   description: string; fields: OpField[];
-  template?: Record<string, any>; // pre-fills all fields
+  template?: Record<string, OpFieldValue>; // pre-fills all fields
   badge?: string;
 }
 

@@ -33,7 +33,7 @@ interface KaiState {
   setTokenBalance:  (token: keyof TokenBalances, value: number) => void;
   setAllBalances:   (balances: Partial<TokenBalances>) => void;
   toggleAutoMine:   () => void;
-  claimFaucet:      (address?: string) => Promise<{ success: boolean; message: string; dispensed?: any }>;
+  claimFaucet:      (address?: string) => Promise<{ success: boolean; message: string; dispensed?: Record<string, number> }>;
   swapTokens:       (fromToken: string, toToken: string, amount: number, recipient?: string) => Promise<{ success: boolean; toAmount: number; txId: string; error?: string }>;
 }
 
@@ -127,8 +127,8 @@ export const useKaiStore = create<KaiState>()(
             return { success: true, message: data.message || 'Tokens claimed!', dispensed: data.dispensed };
           }
           return { success: false, message: data.error || 'Failed to claim tokens on Hedera Testnet' };
-        } catch (e: any) {
-          return { success: false, message: e?.message || 'Network error claiming faucet' };
+        } catch (e) {
+          return { success: false, message: e instanceof Error ? e.message : 'Network error claiming faucet' };
         }
       },
 
@@ -173,8 +173,8 @@ export const useKaiStore = create<KaiState>()(
             };
           }
           return { success: false, toAmount: 0, txId: '', error: data.error || 'Swap failed' };
-        } catch (e: any) {
-          return { success: false, toAmount: 0, txId: '', error: e?.message || 'Network error' };
+        } catch (e) {
+          return { success: false, toAmount: 0, txId: '', error: e instanceof Error ? e.message : 'Network error' };
         }
       },
     }),

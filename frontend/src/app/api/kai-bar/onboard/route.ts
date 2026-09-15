@@ -20,7 +20,7 @@ type KaiUserWithWallets = Prisma.KaiUserGetPayload<{ include: { wallets: true } 
  * returns the existing record.
  */
 export async function POST(req: Request) {
-  let body: any = {};
+  let body: Record<string, unknown> = {};
   try {
     body = await req.json();
   } catch {
@@ -259,7 +259,7 @@ export async function POST(req: Request) {
       referrerName,
       status: user.status,
     });
-  } catch (e: any) {
+  } catch (e) {
     console.error('[kai-bar/onboard] failed', e);
     return NextResponse.json({ error: 'Failed to onboard user' }, { status: 500 });
   }
