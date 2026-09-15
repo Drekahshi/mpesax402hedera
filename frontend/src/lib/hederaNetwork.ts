@@ -107,9 +107,9 @@ export async function switchToHederaTestnet(): Promise<void> {
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: HEDERA_TESTNET_CHAIN.chainId }],
     });
-  } catch (err: any) {
+  } catch (err) {
     // 4902 = chain not added yet
-    if (err?.code === 4902) {
+    if (err && typeof err === 'object' && 'code' in err && err.code === 4902) {
       await addHederaTestnetToMetaMask();
     } else {
       throw err;
