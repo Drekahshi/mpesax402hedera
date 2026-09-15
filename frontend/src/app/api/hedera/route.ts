@@ -16,7 +16,10 @@
  *   hcs-log          — write an HCS audit message
  *   receipt          — fetch transaction receipt by ID
  *
- * Security: server-only API route. Operator key read from env only.
+ * Security: this route holds the real Hedera operator private key and can
+ * move real funds (HBAR, HTS tokens, NFTs) — it is gated by a shared
+ * INTERNAL_SERVICE_KEY (see .env.example), checked below, and every HBAR
+ * transfer is capped per-tx. Never remove the guard or the cap.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -45,7 +48,20 @@ function err(message: string, status = 400) {
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 
+const INTERNAL_KEY = process.env.INTERNAL_SERVICE_KEY ?? '';
+const HBAR_TRANSFER_PER_TX_CAP = 100; // hard ceiling — raise deliberately, never remove
+
 export async function POST(req: NextRequest) {
+  // Fail closed: if the secret isn't configured, no request is trusted —
+  // this endpoint holds the real operator key and must never be open by
+  // default just because setup is incomplete.
+  if (!INTERNAL_KEY) {
+    return err('INTERNAL_SERVICE_KEY is not configured on the server', 503);
+  }
+  if (req.headers.get('x-internal-key') !== INTERNAL_KEY) {
+    return err('Unauthorized', 401);
+  }
+
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -72,6 +88,10 @@ export async function POST(req: NextRequest) {
         const to     = body.to as string;
         const amount = body.amount as number;
         if (!to || !amount) return err('to and amount required');
+        if (amount <= 0) return err('amount must be positive');
+        if (amount > HBAR_TRANSFER_PER_TX_CAP) {
+          return err(`Per-tx cap: max ${HBAR_TRANSFER_PER_TX_CAP} HBAR`);
+        }
         const result = await transferHbar(to, amount);
         await logHcsEvent({
           event: 'HBAR_TRANSFER',
