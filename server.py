@@ -128,6 +128,20 @@ GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 GROQ_API_KEY   = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL     = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
+# ── Internal service auth (money-moving Hedera endpoints) ─────────────────────
+INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "")
+
+def require_internal_key(request: Request) -> None:
+    """
+    Gate for endpoints that mint/transfer real Hedera assets. Fails closed:
+    if the secret isn't configured, every request is rejected rather than
+    silently allowed — this must never be "open by default" during setup.
+    """
+    if not INTERNAL_SERVICE_KEY:
+        raise HTTPException(status_code=503, detail="INTERNAL_SERVICE_KEY is not configured on the server")
+    if request.headers.get("x-internal-key") != INTERNAL_SERVICE_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
 model        = None
 chain        = None
 plain_chain  = None
@@ -1756,7 +1770,7 @@ async def hedera_analyse_stream(body: HederaAccountRequest):
 
 # ── Write endpoints (delegate to Next.js operator API) ────────────────────────
 
-@app.post("/agents/hedera/mint/kaibar")
+@app.post("/agents/hedera/mint/kaibar", dependencies=[Depends(require_internal_key)])
 async def hedera_mint_kaibar_endpoint(body: HederaMintKaibarRequest):
     """
     Mint KAIBAR tokens and transfer to recipient.
