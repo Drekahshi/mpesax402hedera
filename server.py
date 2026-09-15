@@ -1785,7 +1785,7 @@ async def hedera_mint_kaibar_endpoint(body: HederaMintKaibarRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/agents/hedera/mint/connft")
+@app.post("/agents/hedera/mint/connft", dependencies=[Depends(require_internal_key)])
 async def hedera_mint_connft_endpoint(body: HederaMintNFTRequest):
     """
     Mint Conservation NFT(s) for a verified conservation event.
@@ -1806,7 +1806,7 @@ async def hedera_mint_connft_endpoint(body: HederaMintNFTRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/agents/hedera/transfer/hbar")
+@app.post("/agents/hedera/transfer/hbar", dependencies=[Depends(require_internal_key)])
 async def hedera_transfer_hbar_endpoint(body: HederaTransferRequest):
     """Transfer HBAR from the operator account to a recipient."""
     try:
@@ -1818,7 +1818,7 @@ async def hedera_transfer_hbar_endpoint(body: HederaTransferRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/agents/hedera/associate")
+@app.post("/agents/hedera/associate", dependencies=[Depends(require_internal_key)])
 async def hedera_associate_endpoint(body: HederaAssociateRequest):
     """Associate HTS token(s) with an account."""
     try:

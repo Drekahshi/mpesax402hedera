@@ -14,6 +14,7 @@
  */
 
 const RAG_API_URL = process.env.RAG_API_URL ?? "http://localhost:8000";
+const INTERNAL_KEY = process.env.INTERNAL_SERVICE_KEY ?? "";
 
 export type PendingRail = "MPESA" | "BUSHA";
 
@@ -75,7 +76,7 @@ export async function mintConservationNft(params: {
 }): Promise<MintResult> {
   const res = await fetch(`${RAG_API_URL}/agents/hedera/mint/connft`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Internal-Key": INTERNAL_KEY },
     body: JSON.stringify({
       recipient: params.recipient,
       conservation_id: params.conservationId,
