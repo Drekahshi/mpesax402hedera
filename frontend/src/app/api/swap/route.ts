@@ -20,7 +20,7 @@ const USD_RATES: Record<string, number> = {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const {
+    let {
       fromToken,
       toToken,
       fromAmount,
@@ -28,12 +28,18 @@ export async function POST(req: NextRequest) {
       slippageTolerance = 0.5,
     } = body;
 
-    if (!fromToken || !toToken || !fromAmount || !recipient) {
+    if (!fromToken || !toToken || !fromAmount) {
       return NextResponse.json(
-        { error: 'Missing required parameters: fromToken, toToken, fromAmount, recipient' },
+        { error: 'Missing required parameters: fromToken, toToken, fromAmount' },
         { status: 400 },
       );
     }
+
+    // Default recipient to active user account if not specified or if EVM address
+    if (!recipient || !/^0\.0\.\d+$/.test(recipient.trim())) {
+      recipient = '0.0.5883612';
+    }
+    const cleanRecipient = recipient.trim();
 
     const numAmount = Number(fromAmount);
     if (isNaN(numAmount) || numAmount <= 0) {
@@ -55,59 +61,52 @@ export async function POST(req: NextRequest) {
     const toAmount = Number(((numAmount * fromRate * feeRate) / toRate).toFixed(6));
     const minReceived = Number((toAmount * (1 - slippageTolerance / 100)).toFixed(6));
 
-    let txId = `swap-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
-    let explorerUrl = `https://hashscan.io/testnet/transaction/${txId}`;
-    let onChain = false;
+    let txId = '';
+    let explorerUrl = '';
 
-    // On-chain execution for Hedera accounts when operator credentials exist
-    const isHederaAccount = /^0\.0\.\d+$/.test(recipient.trim());
-    if (isHederaAccount && process.env.HEDERA_OPERATOR_ID && process.env.HEDERA_OPERATOR_KEY) {
-      const client = getHederaClient();
-      if (client) {
-        try {
-          if (toSym === 'HBAR') {
-            // User receives HBAR
-            const hbarRes = await transferHbar(recipient.trim(), toAmount);
-            txId = hbarRes.transactionId;
-            explorerUrl = hbarRes.explorerUrl;
-            onChain = true;
-          } else {
-            // User receives HTS token
-            const tokenId = HTS_TOKENS[toSym as keyof typeof HTS_TOKENS];
-            if (tokenId) {
-              try {
-                const htsRes = await transferHts(tokenId, recipient.trim(), toAmount);
-                txId = htsRes.transactionId;
-                explorerUrl = htsRes.explorerUrl;
-                onChain = true;
-              } catch (e: any) {
-                // If transfer from treasury fails (e.g. low treasury balance), try minting to user
-                const mintRes = await mintHtsToken(tokenId, recipient.trim(), toAmount, toSym === 'YBOB' || toSym === 'CENTS' || toSym === 'KBAR' ? 6 : 8);
-                txId = mintRes.transactionId;
-                explorerUrl = mintRes.explorerUrl;
-                onChain = true;
-              }
-            }
-          }
-
-          // Log swap on HCS audit topic
-          await logHcsEvent({
-            event: 'SWAP_EXECUTE' as HcsEventType,
-            recipient: recipient.trim(),
-            amount: numAmount,
-            txId,
-            metadata: {
-              fromToken: fromSym,
-              toToken: toSym,
-              fromAmount: numAmount,
-              toAmount,
-              rate: Number((fromRate / toRate).toFixed(6)),
-            },
-          });
-        } catch (e: any) {
-          console.warn('[Swap API] On-chain Hedera dispatch notice:', e.message);
-        }
+    // Execute real on-chain transaction on Hedera Testnet
+    if (toSym === 'HBAR') {
+      // User receives HBAR on-chain
+      const hbarRes = await transferHbar(cleanRecipient, toAmount);
+      txId = hbarRes.transactionId;
+      explorerUrl = hbarRes.explorerUrl;
+    } else {
+      // User receives HTS token on-chain
+      const tokenId = HTS_TOKENS[toSym as keyof typeof HTS_TOKENS];
+      if (!tokenId) {
+        return NextResponse.json({ error: `Token ${toSym} is not supported on Hedera` }, { status: 400 });
       }
+
+      const is6Decimals = toSym === 'YBOB' || toSym === 'CENTS' || toSym === 'KBAR';
+      try {
+        const htsRes = await transferHts(tokenId, cleanRecipient, toAmount);
+        txId = htsRes.transactionId;
+        explorerUrl = htsRes.explorerUrl;
+      } catch (transferErr: any) {
+        // If transfer from treasury has issue (e.g. low balance), mint directly on-chain
+        const mintRes = await mintHtsToken(tokenId, cleanRecipient, toAmount, is6Decimals ? 6 : 8);
+        txId = mintRes.transactionId;
+        explorerUrl = mintRes.explorerUrl;
+      }
+    }
+
+    // Log immutable on-chain record to Hedera Consensus Service topic
+    try {
+      await logHcsEvent({
+        event: 'SWAP_EXECUTE' as HcsEventType,
+        recipient: cleanRecipient,
+        amount: numAmount,
+        txId,
+        metadata: {
+          fromToken: fromSym,
+          toToken: toSym,
+          fromAmount: numAmount,
+          toAmount,
+          rate: Number((fromRate / toRate).toFixed(6)),
+        },
+      });
+    } catch (hcsErr) {
+      console.warn('[Swap API] HCS audit log notice:', hcsErr);
     }
 
     return NextResponse.json({
@@ -121,18 +120,17 @@ export async function POST(req: NextRequest) {
       invertedRate: Number((toRate / fromRate).toFixed(6)),
       feePercent: 0.3,
       slippageTolerance,
-      recipient,
+      recipient: cleanRecipient,
       txId,
       explorerUrl,
-      onChain,
+      onChain: true,
       timestamp: new Date().toISOString(),
     });
   } catch (err: any) {
     console.error('Swap API error:', err);
     return NextResponse.json(
-      { error: err?.message || 'Failed to process swap' },
+      { error: err?.message || 'Failed to execute on-chain swap on Hedera Testnet' },
       { status: 500 },
     );
   }
 }
-

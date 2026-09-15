@@ -37,7 +37,7 @@ const QUICK = [
   { name: 'AI Agent',   href: '/ai',        icon: Bot,         color: '#10b981', bg: 'rgba(16,185,129,0.14)' },
   { name: 'Playground', href: '/nuvari',     icon: FlaskConical,color: '#34d399', bg: 'rgba(52,211,153,0.14)' },
   { name: 'Scan & Pay', href: '/pay',        icon: ScanLine,    color: '#22d3ee', bg: 'rgba(34,211,238,0.14)' },
-  { name: 'Securities', href: '/securities', icon: ShieldCheck, color: '#06b6d4', bg: 'rgba(6,182,212,0.14)'  },
+  { name: 'Products',   href: '/securities', icon: ShieldCheck, color: '#06b6d4', bg: 'rgba(6,182,212,0.14)'  },
   { name: 'NFT Mkt',    href: '/connft',     icon: ImageIcon,   color: '#a855f7', bg: 'rgba(168,85,247,0.14)' },
   { name: 'Pools',      href: '/pools',      icon: Droplets,    color: '#059669', bg: 'rgba(5,150,105,0.14)'  },
   { name: 'Vaults',     href: '/vaults',     icon: Lock,        color: '#a3e635', bg: 'rgba(163,230,53,0.14)' },
@@ -110,12 +110,15 @@ export default function Home() {
       setHtsBals(map);
       setNativeBalance(p.hbar);
       setAllBalances({
+        hbar: p.hbar,
+        eth: p.hbar,
         nvr: map.nvr ?? 0,
         ybob: map.ybob ?? 0,
         ytoken: map.ytoken ?? 0,
         ygold: map.ygold ?? 0,
         gami: map.gami ?? 0,
         cents: map.cents ?? 0,
+        kbar: map.kbar ?? 0,
       });
     } catch (err) {
       console.error('[HashPack Portfolio]', err);
@@ -518,38 +521,6 @@ export default function Home() {
                 <motion.button whileTap={{ scale:0.93 }} onClick={handleRefresh} style={{ padding:'7px 10px', borderRadius:10, border:'none', cursor:'pointer', background:'rgba(255,255,255,0.05)', backdropFilter:'blur(8px)', color:'rgba(255,255,255,0.48)' }}>
                   <RefreshCw size={12} style={{ animation:refreshing?'spin 1s linear infinite':'none' }} />
                 </motion.button>
-              </div>
-
-              {/* Action buttons: Faucet & Swap */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginTop:4 }}>
-                <motion.button
-                  whileHover={{ scale:1.02 }} whileTap={{ scale:0.97 }}
-                  onClick={handleClaimFaucet}
-                  disabled={faucetLoading}
-                  style={{
-                    padding:'10px 14px', borderRadius:12, border:'none', cursor:faucetLoading?'wait':'pointer',
-                    background:'linear-gradient(135deg,rgba(16,185,129,0.22),rgba(4,120,87,0.30))',
-                    boxShadow:'0 0 0 1px rgba(16,185,129,0.35) inset',
-                    color:'#34d399', fontSize:12, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-                  }}
-                >
-                  <span style={{ fontSize:14 }}>🚰</span>
-                  {faucetLoading ? 'Minting Tokens...' : (faucetSuccess || 'Claim 5,000+ Faucet')}
-                </motion.button>
-
-                <Link href="/pools" style={{ textDecoration:'none' }}>
-                  <motion.button
-                    whileHover={{ scale:1.02 }} whileTap={{ scale:0.97 }}
-                    style={{
-                      width:'100%', padding:'10px 14px', borderRadius:12, border:'none', cursor:'pointer',
-                      background:'linear-gradient(135deg,rgba(59,130,246,0.22),rgba(37,99,235,0.30))',
-                      boxShadow:'0 0 0 1px rgba(96,165,250,0.35) inset',
-                      color:'#93c5fd', fontSize:12, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', gap:6,
-                    }}
-                  >
-                    <span style={{ fontSize:14 }}>🔄</span> Swap HBAR for Tokens
-                  </motion.button>
-                </Link>
               </div>
             </>
           ) : (

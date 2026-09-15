@@ -1,12 +1,12 @@
 {
-  "network": null,
-  "chainId": null,
-  "deployedAt": null,
-  "deployer": null,
-  "explorerBase": "https://sepolia.etherscan.io",
-  "rootCooldownSeconds": 604800,
+  "network": "Hedera Testnet",
+  "chainId": 296,
+  "deployedAt": "2026-09-15T05:34:08.763Z",
+  "deployer": "0xB13727161583e38185530755a1A96D00fcCae870",
+  "explorerBase": "https://hashscan.io/testnet",
   "contract": {
-    "address": null,
-    "explorer": null
+    "address": "0x5e882eb3021061a2e4601ce373422024afb65115",
+    "name": "KAIAirdropVault",
+    "explorer": "https://hashscan.io/testnet/contract/0x5e882eb3021061a2e4601ce373422024afb65115"
   }
 }

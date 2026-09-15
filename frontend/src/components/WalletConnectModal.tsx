@@ -493,11 +493,20 @@ export default function WalletConnectModal({ onClose }: WalletConnectModalProps)
               }}>
                 <p style={{ fontWeight: 700, margin: '0 0 3px' }}>Connection Error</p>
                 <p style={{ margin: '0 0 6px', fontSize: 11 }}>{hashPackError || error?.message}</p>
-                <button onClick={() => { setHashPackError(null); reset(); }} style={{
-                  background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: '#22c55e', fontSize: 11, fontWeight: 700,
-                }}>
-                  Reset & Retry →
+                <button
+                  onClick={async () => {
+                    setHashPackError(null);
+                    reset();
+                    try {
+                      await disconnectHashPack();
+                    } catch { /* ignore */ }
+                  }}
+                  style={{
+                    background: 'transparent', border: 'none', cursor: 'pointer',
+                    color: '#22c55e', fontSize: 11, fontWeight: 700,
+                  }}
+                >
+                  Reset Session & Retry →
                 </button>
               </div>
             )}

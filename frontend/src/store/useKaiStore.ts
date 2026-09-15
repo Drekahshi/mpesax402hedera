@@ -126,23 +126,9 @@ export const useKaiStore = create<KaiState>()(
             set({ balances: updated });
             return { success: true, message: data.message || 'Tokens claimed!', dispensed: data.dispensed };
           }
-          return { success: false, message: data.error || 'Failed to claim tokens' };
+          return { success: false, message: data.error || 'Failed to claim tokens on Hedera Testnet' };
         } catch (e: any) {
-          // Fallback demo minting
-          const cur = get().balances;
-          const updated: TokenBalances = {
-            eth: (cur.eth || 0) + 10,
-            hbar: (cur.hbar || 0) + 10,
-            nvr: (cur.nvr || 0) + 5000,
-            ybob: (cur.ybob || 0) + 5000,
-            ytoken: (cur.ytoken || 0) + 2500,
-            ygold: (cur.ygold || 0) + 1500,
-            gami: (cur.gami || 0) + 8000,
-            cents: (cur.cents || 0) + 10000,
-            kbar: (cur.kbar || 0) + 2000,
-          };
-          set({ balances: updated });
-          return { success: true, message: 'Minted 5,000+ tokens to your wallet!' };
+          return { success: false, message: e?.message || 'Network error claiming faucet' };
         }
       },
 

@@ -1,0 +1,92 @@
+{
+  "generated": "2026-09-14",
+  "network": "testnet",
+  "description": "KAI Nuvari HTS Fungible Token Registry",
+  "tokens": {
+    "NVR": {
+      "name": "NVR Token",
+      "symbol": "NVR",
+      "tokenId": "0.0.10450060",
+      "decimals": 8,
+      "type": "FUNGIBLE_COMMON",
+      "maxSupply": null,
+      "initialSupply": 100000,
+      "hashscanUrl": "https://hashscan.io/testnet/token/0.0.10450060",
+      "envKey": "NEXT_PUBLIC_NVR_HTS_TOKEN_ID"
+    },
+    "YBOB": {
+      "name": "yBOB Token",
+      "symbol": "YBOB",
+      "tokenId": "0.0.10450061",
+      "decimals": 6,
+      "type": "FUNGIBLE_COMMON",
+      "maxSupply": null,
+      "initialSupply": 100000,
+      "hashscanUrl": "https://hashscan.io/testnet/token/0.0.10450061",
+      "envKey": "NEXT_PUBLIC_YBOB_HTS_TOKEN_ID"
+    },
+    "YTOKEN": {
+      "name": "Y Token",
+      "symbol": "YTOKEN",
+      "tokenId": "0.0.10450063",
+      "decimals": 8,
+      "type": "FUNGIBLE_COMMON",
+      "maxSupply": null,
+      "initialSupply": 100000,
+      "hashscanUrl": "https://hashscan.io/testnet/token/0.0.10450063",
+      "envKey": "NEXT_PUBLIC_YTOKEN_HTS_TOKEN_ID",
+      "note": "1 HBAR = 10 YTOKEN (PRD rate)"
+    },
+    "YGOLD": {
+      "name": "Y Gold",
+      "symbol": "YGOLD",
+      "tokenId": "0.0.10450065",
+      "decimals": 8,
+      "type": "FUNGIBLE_COMMON",
+      "maxSupply": null,
+      "initialSupply": 100000,
+      "hashscanUrl": "https://hashscan.io/testnet/token/0.0.10450065",
+      "envKey": "NEXT_PUBLIC_YGOLD_HTS_TOKEN_ID"
+    },
+    "GAMI": {
+      "name": "GAMI Token",
+      "symbol": "GAMI",
+      "tokenId": "0.0.10450068",
+      "decimals": 8,
+      "type": "FUNGIBLE_COMMON",
+      "maxSupply": null,
+      "initialSupply": 100000,
+      "hashscanUrl": "https://hashscan.io/testnet/token/0.0.10450068",
+      "envKey": "NEXT_PUBLIC_GAMI_HTS_TOKEN_ID"
+    },
+    "CENTS": {
+      "name": "KAI Cents",
+      "symbol": "CENTS",
+      "tokenId": "0.0.10450070",
+      "decimals": 6,
+      "type": "FUNGIBLE_COMMON",
+      "maxSupply": null,
+      "initialSupply": 1000000,
+      "hashscanUrl": "https://hashscan.io/testnet/token/0.0.10450070",
+      "envKey": "NEXT_PUBLIC_CENTS_HTS_TOKEN_ID",
+      "note": "1 HBAR = 1000 CENTS (PRD rate)"
+    },
+    "KBAR": {
+      "name": "KAI BAR",
+      "symbol": "KBAR",
+      "tokenId": "0.0.10449901",
+      "decimals": 6,
+      "type": "FUNGIBLE_COMMON",
+      "maxSupply": null,
+      "initialSupply": 100000,
+      "hashscanUrl": "https://hashscan.io/testnet/token/0.0.10449901",
+      "envKey": "NEXT_PUBLIC_KAIBAR_TOKEN_ID"
+    }
+  },
+  "swapRates": {
+    "description": "Configurable rates from /frontend/src/lib/swapRates.ts",
+    "HBAR_TO_YTOKEN": "1 HBAR = 10 YTOKEN",
+    "HBAR_TO_NVR": "1 HBAR = 10 NVR",
+    "HBAR_TO_CENTS": "1 HBAR = 1000 CENTS"
+  }
+}

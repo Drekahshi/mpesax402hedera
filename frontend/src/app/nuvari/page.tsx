@@ -3,9 +3,8 @@
 import { Operation, OPERATIONS, KAI_ACCOUNT, OWNER_ACCOUNT } from "../../shared/operationSchemas";
 import { TREASURY as TREASURY_FROM_LIB } from "@/lib/addresses";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { useAccount, useSendTransaction, useSwitchChain } from "wagmi";
-import { sepolia } from "wagmi/chains";
-import { parseEther } from "viem";
+import { useAccount } from "wagmi";
+import { useKaiStore } from "@/store/useKaiStore";
 import {
   Shield, Lock, Users, Search, Play, ChevronRight, TerminalSquare,
   Loader, ExternalLink, Code, FileText, Sparkles, X,
@@ -31,9 +30,10 @@ interface ExecResult {
 
 type TermLine = { id: number; type: "cmd"|"info"|"success"|"warn"|"error"|"receipt"; text: string; link?: {label: string; url: string}; ts: string; };
 
-const SEPOLIA_CHAIN_ID = sepolia.id;
 const TREASURY_ADDRESS = (TREASURY_FROM_LIB ?? "0xB13727161583e38185530755a1A96D00fcCae870") as `0x${string}`;
-const POLICY_FEE_ETH = "0.0001";
+// (TREASURY_ADDRESS referenced for backward compat; execution is now via Hedera API)
+
+// POLICY_FEE_ETH no longer used — fee is in HBAR via /api/policies/execute
 
 // ═══════════════════════════════════════════════════════════
 // OPERATIONS REGISTRY — full 70+ ops across 3 services
@@ -60,8 +60,10 @@ const NAV: { id: ServiceSection; label: string; icon: React.ReactNode; color?: s
 // ═══════════════════════════════════════════════════════════
 export default function KaiPlayground() {
   const { address } = useAccount();
-  const { sendTransactionAsync } = useSendTransaction();
-  const { switchChainAsync } = useSwitchChain();
+  const hashpackAccountId = useKaiStore(s => s.hashpackAccountId);
+  const walletType = useKaiStore(s => s.walletType);
+  const activeAddress = walletType === 'hashpack' && hashpackAccountId ? hashpackAccountId : address;
+
   const [activeSection, setActiveSection]   = useState<ServiceSection>("quick-start");
   const [activeTab, setActiveTab]           = useState<"transaction"|"query">("transaction");
   const [searchQuery, setSearchQuery]       = useState("");
@@ -180,14 +182,16 @@ export default function KaiPlayground() {
     }
   };
 
-  // ── Create Policy Flow ─────────────────────────────────
+  // ── Execute Policy on Hedera ───────────────────────────────────────────────
   const handleExecute = async () => {
     if (!selectedOp) return;
     setIsRunning(true);
     setRightTab("terminal");
     setMobilePanel("terminal");
 
-    const owner = address || formValues.owner || formValues.settlor || formValues.memberAccount || OWNER_ACCOUNT;
+    const owner = hashpackAccountId || address || formValues.owner || formValues.settlor
+      || formValues.memberAccount || OWNER_ACCOUNT;
+
     const exec: ExecResult = {
       id: `exec_${Math.random().toString(36).slice(2, 10)}`,
       opName: selectedOp.name,
@@ -201,39 +205,82 @@ export default function KaiPlayground() {
     setCurrentExec(exec);
 
     try {
-      if (!address) throw new Error("Connect a wallet before creating a policy.");
-      await switchChainAsync({ chainId: SEPOLIA_CHAIN_ID });
-      log("info", `[Policy] ${selectedOp.name} prepared for Sepolia / Hedera Testnet Testnet`);
-      log("info", `Treasury: ${TREASURY_ADDRESS}`);
-      const txHash = await sendTransactionAsync({ to: TREASURY_ADDRESS, value: parseEther(POLICY_FEE_ETH) });
-      exec.txId = txHash;
-      exec.txHash = txHash;
-      exec.explorerUrl = `https://sepolia.etherscan.io/tx/${txHash}`;
-      exec.ethFee = `${POLICY_FEE_ETH} ETH`;
-      exec.platformFee = `${POLICY_FEE_ETH} ETH`;
+      // ── Stage 1: Validate ──────────────────────────────────────────────────
+      log("info", `[Validating] ${selectedOp.name}`);
+      log("info", `[Agent]  Policy ID: ${exec.policyId}`);
+      log("info", `[Agent]  Service: ${selectedOp.service} | Op: ${selectedOp.id}`);
+
+      // ── Stage 2: Submit to Hedera execution engine ─────────────────────────
+      log("info", `[Hedera] Submitting to execution engine...`);
+
+      const execRes = await fetch("/api/policies/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          policyId:   exec.policyId,
+          action:     selectedOp.id || selectedOp.name,
+          userId:     owner,
+          parameters: {
+            operation: selectedOp.id,
+            service:   selectedOp.service,
+            ...formValues,
+            ...customParams.reduce((a, c) => {
+              if (c.key.trim()) a[c.key] = c.value;
+              return a;
+            }, {} as Record<string, unknown>),
+          },
+          skipFee: false,
+        }),
+      });
+
+      const execData = await execRes.json();
+
+      if (!execRes.ok || execData.status === "failed") {
+        throw new Error(execData.error ?? "Hedera execution failed");
+      }
+
+      // ── Stage 3: Confirmed ─────────────────────────────────────────────────
+      const txId: string = execData.transactionId;
+      const explorerUrl: string = execData.explorerUrl;
+
+      exec.txId      = txId;
+      exec.txHash    = txId;
+      exec.explorerUrl = explorerUrl;
+      exec.ethFee    = `${execData.feeHbar ?? 0.5} HBAR`;
+      exec.platformFee = `${execData.feeHbar ?? 0.5} HBAR`;
+
+      log("success", `[Confirmed] Hedera TX ID: ${txId}`);
+      log("receipt",  `[HashScan]  ${explorerUrl}`, { label: "View on HashScan", url: explorerUrl });
+
+      // ── Stage 4: Save policy record to backend ─────────────────────────────
       const saved = await fetch("/api/policies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           owner,
-          serviceType: selectedOp.service,
-          config: { operation: selectedOp.id, ...formValues, customParams },
-          paymentAmount: Number(POLICY_FEE_ETH),
-          paymentTxHash: txHash,
+          serviceType:      selectedOp.service,
+          config:           { operation: selectedOp.id, ...formValues },
+          paymentAmount:    execData.feeHbar ?? 0.5,
+          paymentTxHash:    txId,
+          hederaNetwork:    execData.network ?? 'testnet',
         }),
       });
-      if (!saved.ok) throw new Error("Policy backend could not save the transaction.");
-      exec.status = "completed";
+      if (!saved.ok) {
+        log("warn", `[Warning] Policy saved on-chain but backend record failed. TX still valid.`);
+      }
+
+      exec.status      = "completed";
       exec.confirmedAt = new Date().toISOString();
-      exec.finishedAt = new Date().toISOString();
-      log("success", `[Policy] ${exec.policyId} registered after treasury payment`);
-      log("info", `Transaction: ${txHash}`);
+      exec.finishedAt  = new Date().toISOString();
+
       setCurrentExec({ ...exec });
       setExecHistory(prev => [{ ...exec }, ...prev]);
       setRightTab("result");
-    } catch (err: any) {
-      log("error", `[Error] ${err.message}`);
-      exec.status = "failed";
+
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Execution failed";
+      log("error", `[Error] ${msg}`);
+      exec.status     = "failed";
       exec.finishedAt = new Date().toISOString();
       setCurrentExec({ ...exec });
       setExecHistory(prev => [{ ...exec }, ...prev]);
@@ -455,7 +502,7 @@ export default function KaiPlayground() {
             </div>
           ) : activeSection === "admin" ? (
             <div style={{ padding:"16px 10px" }}>
-              {[["Network", "Sepolia / Hedera Testnet Testnet"],["Treasury", TREASURY_ADDRESS],["Engine Wallet", KAI_ACCOUNT]].map(([k,v]) => (
+              {[["Network", "Hedera Testnet (296)"],["Hedera Treasury", "0.0.5834216"],["Engine Account", KAI_ACCOUNT]].map(([k,v]) => (
                 <div key={k} style={{ display:"flex", justifyContent:"space-between", fontSize:"11px", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
                   <span style={{ color:"rgba(255,255,255,0.4)" }}>{k}</span>
                   <span style={{ color:"rgba(255,255,255,0.7)", fontFamily:"monospace" }}>{v}</span>
@@ -570,9 +617,7 @@ export default function KaiPlayground() {
               setTxUrl={setBpTxUrl}
               submitting={bpSubmitting}
               setSubmitting={setBpSubmitting}
-              address={address}
-              sendTransactionAsync={sendTransactionAsync}
-              switchChainAsync={switchChainAsync}
+              address={activeAddress}
               policies={policies}
               refreshPolicies={fetchPolicies}
             />
@@ -648,9 +693,9 @@ export default function KaiPlayground() {
           )}
         </div>
 
-        {/* Sepolia Policy Status */}
+        {/* Hedera Policy Status */}
         <div style={{ padding:"10px 20px", borderTop:"1px solid rgba(255,255,255,0.06)", background:"rgba(255,255,255,0.01)", display:"flex", gap:"16px", flexShrink:0 }}>
-          {[["Sepolia","Ethereum Sepolia testnet"],["Wallet","User-signed"],["Treasury",TREASURY_ADDRESS],["AI", aiAvailable === false ? "offline (optional)" : aiAvailable === true ? "online" : "optional"]].map(([k,v]) => (
+          {[["Network","Hedera Testnet (296)"],["Wallet","HashPack / Web3"],["Hedera Treasury","0.0.5834216"],["AI", aiAvailable === false ? "offline (optional)" : aiAvailable === true ? "online" : "optional"]].map(([k,v]) => (
             <div key={k} style={{ fontSize:"10px", display:"flex", flexDirection:"column", gap:"1px" }}>
               <span style={{ color:"rgba(255,255,255,0.5)", fontWeight:"600" }}>{k}</span>
               <span style={{ color:"rgba(255,255,255,0.25)" }}>{v}</span>
@@ -675,7 +720,7 @@ export default function KaiPlayground() {
 
         {rightTab === "terminal" ? (
           <div ref={termRef} style={{ flex:1, overflowY:"auto", padding:"12px 14px", fontFamily:"'JetBrains Mono',monospace", fontSize:"11px", lineHeight:"1.6" }}>
-            <div style={{ color:"rgba(255,255,255,0.2)", marginBottom:"10px" }}>{"// KAI Policy Workspace · Sepolia / Hedera Testnet"}</div>
+            <div style={{ color:"rgba(255,255,255,0.2)", marginBottom:"10px" }}>{"// KAI Policy Workspace · Hedera Testnet (Chain ID 296)"}</div>
             {terminal.length === 0 && <div style={{ color:"rgba(255,255,255,0.2)" }}>Select an operation and click Execute to begin.</div>}
             {terminal.map(l => (
               <div key={l.id} style={{ marginBottom:"3px", wordBreak:"break-all" }}>
@@ -693,7 +738,7 @@ export default function KaiPlayground() {
             ))}
             {isRunning && (
               <div style={{ color:"#a78bfa", display:"flex", alignItems:"center", gap:"6px", marginTop:"6px" }}>
-                <Loader size={12} style={{ animation:"spin 1s linear infinite" }} /> Waiting for wallet confirmation…
+                <Loader size={12} style={{ animation:"spin 1s linear infinite" }} /> Executing on Hedera Testnet…
               </div>
             )}
           </div>
@@ -715,30 +760,28 @@ export default function KaiPlayground() {
                   </div>
                 </div>
 
-                {/* Fields Table */}
+                {/* HashScan Receipt Link */}
                 {currentExec.explorerUrl && (
                   <a href={currentExec.explorerUrl} target="_blank" rel="noopener noreferrer"
                     style={{ display:"flex", alignItems:"center", justifyContent:"space-between", background:"rgba(59,130,246,0.1)", border:"1px solid rgba(59,130,246,0.25)", borderRadius:"7px", padding:"10px 14px", textDecoration:"none" }}>
                     <div>
-                      <div style={{ fontSize:"12px", fontWeight:"600", color:"#60a5fa" }}>Open Sepolia Transaction</div>
-                      <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.35)" }}>View on Etherscan</div>
+                      <div style={{ fontSize:"12px", fontWeight:"600", color:"#60a5fa" }}>View HashScan Receipt</div>
+                      <div style={{ fontSize:"10px", color:"rgba(255,255,255,0.35)" }}>{currentExec.txId || currentExec.txHash}</div>
                     </div>
                     <ExternalLink size={14} color="#60a5fa" />
                   </a>
                 )}
 
                 {[
-                  ["ID",             currentExec.txId || currentExec.id],
-                  ["Type",           "Crypto Transfer"],
+                  ["Hedera TX ID",    currentExec.txId || currentExec.id],
+                  ["Type",            "Hedera Policy Execution"],
                   ["Confirmed at",    currentExec.confirmedAt ? currentExec.confirmedAt.slice(0,19).replace("T"," ") : "—"],
-                  ["Transaction Hash", currentExec.txHash || "—"],
-                  ["Network",         "Sepolia / Hedera Testnet"],
-                  ["Treasury",        TREASURY_ADDRESS],
-                  ["Memo",           currentExec.opName],
-                  ["Payer Account",  currentExec.payerAccount || "—"],
-                  ["ETH Fee",        currentExec.ethFee || "—"],
-                  ["Policy ID",      currentExec.policyId || "—"],
-                  ["Treasury Payment", currentExec.platformFee || "—"],
+                  ["Network",         "Hedera Testnet (Chain ID 296)"],
+                  ["Hedera Treasury", "0.0.5834216"],
+                  ["Memo",            currentExec.opName],
+                  ["Payer Account",   currentExec.payerAccount || "—"],
+                  ["Fee",             currentExec.ethFee || "0.5 HBAR"],
+                  ["Policy ID",       currentExec.policyId || "—"],
                 ].map(([k,v]) => (
                   <div key={k} style={{ display:"flex", justifyContent:"space-between", fontSize:"11px", padding:"7px 0", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
                     <span style={{ color:"rgba(255,255,255,0.4)" }}>{k}</span>
@@ -860,9 +903,7 @@ interface BPProps {
   setTxUrl: (u: string|null) => void;
   submitting: boolean;
   setSubmitting: (b: boolean) => void;
-  address?: `0x${string}`;
-  sendTransactionAsync: (args: any) => Promise<`0x${string}`>;
-  switchChainAsync: (args: any) => Promise<any>;
+  address?: string;
   policies: any[];
   refreshPolicies: () => void;
 }
@@ -870,8 +911,7 @@ interface BPProps {
 function BuildPolicyPanel({
   templateId, fields, setFields, status, setStatus,
   txUrl, setTxUrl, submitting, setSubmitting,
-  address, sendTransactionAsync, switchChainAsync,
-  policies, refreshPolicies,
+  address, policies, refreshPolicies,
 }: BPProps) {
   const tmpl = BP_TEMPLATES[templateId];
   if (!tmpl) return null;
@@ -883,25 +923,40 @@ function BuildPolicyPanel({
     const missing = tmpl.fields.find(f => !fields[f.key]?.trim());
     if (missing) { setStatus(`Fill in "${missing.label}"`); return; }
 
-    setSubmitting(true); setStatus("Switching to Sepolia / Hedera Testnet..."); setTxUrl(null);
+    const policyId = `pol_${Math.random().toString(36).slice(2, 10)}`;
+    setSubmitting(true); setStatus("Submitting policy to Hedera..."); setTxUrl(null);
     try {
-      await switchChainAsync({ chainId: 11155111 });
-      setStatus(`Paying ${POLICY_FEE_BP} ETH registration fee...`);
-      const txHash = await sendTransactionAsync({ to: TREASURY_BP, value: parseEther(POLICY_FEE_BP) });
-      setTxUrl(`https://sepolia.etherscan.io/tx/${txHash}`);
-      setStatus("Saving policy...");
-      const res = await fetch("/api/policies", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ owner: address, serviceType: templateId, config: fields,
-          paymentAmount: Number(POLICY_FEE_BP), paymentTxHash: txHash }),
+      const res = await fetch("/api/policies/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          policyId,
+          action: templateId.toUpperCase(),
+          userId: address,
+          parameters: fields,
+          skipFee: false,
+        }),
       });
-      if (!res.ok) throw new Error("API error");
-      const { policy } = await res.json();
-      setStatus(`Policy ${policy.policyId} created on Sepolia!`);
-      setFields({});
-      refreshPolicies();
-    } catch (e: any) {
-      setStatus(`${e.message?.slice(0, 100)}`);
+      const data = await res.json();
+      if (!res.ok || data.status === "failed") throw new Error(data.error ?? "Execution failed");
+
+      setTxUrl(data.explorerUrl);
+      setStatus(`✓ Policy ${policyId} confirmed on Hedera! TX: ${data.transactionId.slice(0, 20)}…`);
+
+      // Save to backend
+      const saved = await fetch("/api/policies", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          owner: address, serviceType: templateId, config: fields,
+          paymentAmount: data.feeHbar ?? 0.5,
+          paymentTxHash: data.transactionId,
+          hederaNetwork: data.network ?? 'testnet',
+        }),
+      });
+      if (saved.ok) refreshPolicies();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Policy creation failed";
+      setStatus(msg.slice(0, 120));
     } finally { setSubmitting(false); }
   };
 

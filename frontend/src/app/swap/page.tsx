@@ -32,9 +32,11 @@ import {
 } from "lucide-react";
 import { useKaiStore, type TokenBalances } from "@/store/useKaiStore";
 import WalletConnectModal from "@/components/WalletConnectModal";
+import HederaTxConfirmation from "@/components/HederaTxConfirmation";
 import { ECOSYSTEM_TOKENS } from "@/lib/tokens";
 import { ERC20_ABI } from "@/lib/erc20abi";
 import { POOL_ABI, AMM_ABI } from "@/lib/defiAbis";
+import { computeSwapOutput, HBAR_RATES, getDisplayRate } from "@/lib/swapRates";
 import defiAddrs from "@/lib/defiAddresses.json";
 
 // ── Token Metadata ────────────────────────────────────────────────────────────
@@ -165,6 +167,16 @@ export default function SwapTerminalPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState<"info" | "success" | "error">("info");
   const [txUrl, setTxUrl] = useState<string | null>(null);
+  const [hederaTxId, setHederaTxId] = useState<string | null>(null);
+  const [showTxConfirm, setShowTxConfirm] = useState(false);
+  const [txConfirmData, setTxConfirmData] = useState<{
+    success: boolean;
+    transactionId?: string;
+    explorerUrl?: string;
+    inputAmount?: string;
+    outputAmount?: string;
+    errorReason?: string;
+  } | null>(null);
 
   const [faucetBusy, setFaucetBusy] = useState(false);
   const [faucetMsg, setFaucetMsg] = useState<string | null>(null);
@@ -187,29 +199,30 @@ export default function SwapTerminalPage() {
   const fromBalance = useMemo(() => getBalance(fromSymbol), [getBalance, fromSymbol]);
   const toBalance = useMemo(() => getBalance(toSymbol), [getBalance, toSymbol]);
 
-  // Derived output quote
-  const calculatedOutput = useMemo(() => {
+  // Derived output quote using Hedera rates from swapRates.ts
+  const swapQuote = useMemo(() => {
     const num = parseFloat(fromAmount);
-    if (!num || isNaN(num) || num <= 0) return "";
-    const inUsd = num * fromToken.rateUsd;
-    const feeDiscount = 0.997; // 0.3% fee
-    const outRaw = (inUsd * feeDiscount) / toToken.rateUsd;
-    return outRaw.toFixed(6);
-  }, [fromAmount, fromToken, toToken]);
+    if (!num || isNaN(num) || num <= 0) return null;
+    return computeSwapOutput(fromSymbol, toSymbol, num);
+  }, [fromAmount, fromSymbol, toSymbol]);
+
+  const calculatedOutput = useMemo(() => {
+    if (!swapQuote || swapQuote.outputAfterFee <= 0) return "";
+    return swapQuote.outputAfterFee.toFixed(6);
+  }, [swapQuote]);
 
   const exchangeRate = useMemo(() => {
-    return (fromToken.rateUsd / toToken.rateUsd).toFixed(6);
-  }, [fromToken, toToken]);
+    return getDisplayRate(fromSymbol, toSymbol);
+  }, [fromSymbol, toSymbol]);
 
   const invertedRate = useMemo(() => {
-    return (toToken.rateUsd / fromToken.rateUsd).toFixed(6);
-  }, [fromToken, toToken]);
+    return getDisplayRate(toSymbol, fromSymbol);
+  }, [fromSymbol, toSymbol]);
 
   const minReceived = useMemo(() => {
-    const num = parseFloat(calculatedOutput);
-    if (!num || isNaN(num)) return "0.000000";
-    return (num * (1 - slippage / 100)).toFixed(6);
-  }, [calculatedOutput, slippage]);
+    if (!swapQuote) return "0.000000";
+    return swapQuote.minReceived(slippage).toFixed(6);
+  }, [swapQuote, slippage]);
 
   const priceImpact = useMemo(() => {
     const num = parseFloat(fromAmount);
@@ -254,7 +267,7 @@ export default function SwapTerminalPage() {
     }
   };
 
-  // Execute Swap
+  // Execute Swap via Hedera API
   const handleExecuteSwap = async () => {
     if (!isWalletConnected && !address && !hashpackAccountId) {
       setShowConnectModal(true);
@@ -268,57 +281,85 @@ export default function SwapTerminalPage() {
       return;
     }
 
+    if (!swapQuote || swapQuote.outputAfterFee <= 0) {
+      setStatusType("error");
+      setStatusMessage(`No exchange rate available for ${fromSymbol} → ${toSymbol}`);
+      return;
+    }
+
     setIsSwapping(true);
     setStatusMessage("");
     setTxUrl(null);
+    setHederaTxId(null);
 
     try {
-      // 1. Hedera Native Rail / Universal Engine
       setStatusType("info");
-      setStatusMessage(`Initiating ${fromSymbol} ↔ ${toSymbol} swap via Hedera HTS rails...`);
+      setStatusMessage(`Submitting ${fromSymbol} → ${toSymbol} swap to Hedera...`);
 
-      const res = await swapTokensInStore(fromSymbol, toSymbol, amtNum, activeAddress);
-      if (res.success) {
-        setStatusType("success");
-        setStatusMessage(
-          `Swapped ${fromAmount} ${fromSymbol} for ${res.toAmount.toFixed(4)} ${toSymbol}!`
-        );
-        setTxUrl(`https://hashscan.io/testnet/transaction/${res.txId}`);
-        setFromAmount("");
-      } else {
-        // Sepolia EVM on-chain fallback if ERC-20 contract is available
-        if (fromToken.address && toToken.address && AMM_ADDR) {
-          setStatusMessage(`Routing swap through Sepolia AMM Router...`);
-          await switchChainAsync({ chainId: sepolia.id });
-          const amtWei = parseUnits(fromAmount, fromToken.decimals);
-          const appTx = await writeContractAsync({
-            address: fromToken.address,
-            abi: ERC20_ABI,
-            functionName: "approve",
-            args: [AMM_ADDR, maxUint256],
-            chainId: sepolia.id,
-          });
-          await publicClient?.waitForTransactionReceipt({ hash: appTx });
+      // Determine Hedera account ID for recipient
+      const recipientAccount = hashpackAccountId ?? activeAddress ?? '';
+      const isHederaAccount = /^\d+\.\d+\.\d+$/.test(recipientAccount);
 
-          const swapTx = await writeContractAsync({
-            address: AMM_ADDR,
-            abi: AMM_ABI,
-            functionName: "swap",
-            args: [fromToken.address, toToken.address, amtWei, 0n],
-            chainId: sepolia.id,
-          });
-          setTxUrl(`${EXPLORER}/tx/${swapTx}`);
+      if (isHederaAccount) {
+        // ── Hedera HTS native path ──────────────────────────────────────────
+        const res = await fetch('/api/hedera/swap', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fromSymbol,
+            toSymbol,
+            inputAmount: amtNum,
+            recipientAccount,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          const outputStr = `${data.swap.outputAmount.toFixed(4)} ${toSymbol}`;
           setStatusType("success");
-          setStatusMessage(`Swapped ${fromAmount} ${fromSymbol} → ${toSymbol} on Sepolia!`);
+          setStatusMessage(`✓ Swapped ${fromAmount} ${fromSymbol} → ${outputStr}`);
+          setTxUrl(data.explorerUrl);
+          setHederaTxId(data.transactionId);
+          setTxConfirmData({
+            success: true,
+            transactionId: data.transactionId,
+            explorerUrl: data.explorerUrl,
+            inputAmount: `${fromAmount} ${fromSymbol}`,
+            outputAmount: outputStr,
+          });
+          setShowTxConfirm(true);
           setFromAmount("");
         } else {
-          setStatusType("error");
-          setStatusMessage(res.error || "Swap execution failed. Please try again.");
+          throw new Error(data.error ?? 'Swap execution failed');
+        }
+      } else {
+        // ── Store-based fallback for EVM wallets ────────────────────────────
+        const res = await swapTokensInStore(fromSymbol, toSymbol, amtNum, activeAddress);
+        if (res.success) {
+          setStatusType("success");
+          setStatusMessage(`Swapped ${fromAmount} ${fromSymbol} for ${res.toAmount.toFixed(4)} ${toSymbol}`);
+          setTxUrl(`https://hashscan.io/testnet/transaction/${res.txId}`);
+          setHederaTxId(res.txId ?? null);
+          setTxConfirmData({
+            success: true,
+            transactionId: res.txId,
+            explorerUrl: `https://hashscan.io/testnet/transaction/${res.txId}`,
+            inputAmount: `${fromAmount} ${fromSymbol}`,
+            outputAmount: `${res.toAmount.toFixed(4)} ${toSymbol}`,
+          });
+          setShowTxConfirm(true);
+          setFromAmount("");
+        } else {
+          throw new Error(res.error || 'Swap failed');
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Swap transaction failed";
       setStatusType("error");
-      setStatusMessage(err?.message?.slice(0, 100) || "Swap transaction failed");
+      setStatusMessage(msg.slice(0, 120));
+      setTxConfirmData({ success: false, errorReason: msg });
+      setShowTxConfirm(true);
     } finally {
       setIsSwapping(false);
     }
@@ -1151,6 +1192,21 @@ export default function SwapTerminalPage() {
 
       {/* Wallet Connect Modal */}
       {showConnectModal && <WalletConnectModal onClose={() => setShowConnectModal(false)} />}
+
+      {/* Hedera TX Confirmation Modal */}
+      {showTxConfirm && txConfirmData && (
+        <HederaTxConfirmation
+          success={txConfirmData.success}
+          transactionId={txConfirmData.transactionId}
+          explorerUrl={txConfirmData.explorerUrl}
+          action={`Swap ${fromSymbol} → ${toSymbol}`}
+          inputAmount={txConfirmData.inputAmount}
+          outputAmount={txConfirmData.outputAmount}
+          network="Hedera Testnet"
+          errorReason={txConfirmData.errorReason}
+          onClose={() => setShowTxConfirm(false)}
+        />
+      )}
     </div>
   );
 }

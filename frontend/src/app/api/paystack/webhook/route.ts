@@ -17,9 +17,6 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-// Paystack needs the raw body for HMAC verification — disable body parsing.
-export const config = { api: { bodyParser: false } };
-
 export async function POST(request: Request) {
   try {
     const rawBody  = await request.text();
