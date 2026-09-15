@@ -142,6 +142,20 @@ def require_internal_key(request: Request) -> None:
     if request.headers.get("x-internal-key") != INTERNAL_SERVICE_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+
+@app.exception_handler(HTTPException)
+async def x402_aware_http_exception_handler(request: Request, exc: HTTPException):
+    """
+    FastAPI's default HTTPException handling always wraps `detail` as
+    {"detail": ...}. X402Middleware (agents/x402_rails.py) raises 402s with
+    detail={"error": ..., "accepts": [...]} — the x402 client (and spec)
+    expect `accepts` at the TOP LEVEL of the body, not nested under "detail".
+    Unwrap only for that shape; every other HTTPException keeps default behavior.
+    """
+    if exc.status_code == 402 and isinstance(exc.detail, dict):
+        return JSONResponse(status_code=402, content=exc.detail)
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
 model        = None
 chain        = None
 plain_chain  = None
@@ -482,7 +496,7 @@ class TxRequest(BaseModel):
     address: str = ""
 
 @app.post("/agents/tx/analyse")
-async def tx_analyse(body: TxRequest):
+async def tx_analyse(body: TxRequest, payment: dict = Depends(x402_gate("/agents/tx/analyse"))):
     if not body.tx_hash and not body.address:
         raise HTTPException(400, "Provide tx_hash or address")
     return await tx_agent.run(tx_hash=body.tx_hash, address=body.address)
@@ -508,7 +522,7 @@ class PortfolioRequest(BaseModel):
     vault_map:  dict = Field(default_factory=dict)
 
 @app.post("/agents/portfolio/health")
-async def portfolio_health(body: PortfolioRequest):
+async def portfolio_health(body: PortfolioRequest, payment: dict = Depends(x402_gate("/agents/portfolio/health"))):
     if not body.wallet:
         raise HTTPException(400, "wallet address required")
     return await portfolio_agent.run(
@@ -537,7 +551,7 @@ class AuditRequest(BaseModel):
     filename: Optional[str] = None
 
 @app.post("/agents/audit")
-async def audit_contracts(body: AuditRequest):
+async def audit_contracts(body: AuditRequest, payment: dict = Depends(x402_gate("/agents/audit"))):
     return await auditor_agent.run(
         contracts_dir=body.contracts_dir,
         filename=body.filename,
@@ -564,7 +578,7 @@ class DAORequest(BaseModel):
     kip_number: Optional[int] = None
 
 @app.post("/agents/dao/draft")
-async def dao_draft(body: DAORequest):
+async def dao_draft(body: DAORequest, payment: dict = Depends(x402_gate("/agents/dao/draft"))):
     if not body.idea.strip():
         raise HTTPException(400, "idea cannot be empty")
     return await dao_agent.run(
@@ -600,7 +614,7 @@ class PriceSubmission(BaseModel):
     unit: str = "kg"
 
 @app.post("/agents/commodities/report")
-async def commodity_report(body: CommodityRequest):
+async def commodity_report(body: CommodityRequest, payment: dict = Depends(x402_gate("/agents/commodities/report"))):
     return await pricing_agent.run(
         commodity=body.commodity,
         days=body.days,
@@ -645,7 +659,7 @@ class PolicyRequest(BaseModel):
     question: Optional[str] = None
 
 @app.post("/agents/policy/recommend")
-async def policy_recommend(body: PolicyRequest):
+async def policy_recommend(body: PolicyRequest, payment: dict = Depends(x402_gate("/agents/policy/recommend"))):
     return await policy_agent.run(**body.model_dump())
 
 @app.post("/agents/policy/stream")
@@ -667,7 +681,7 @@ class CodeGenRequest(BaseModel):
     save: bool = False
 
 @app.post("/agents/codegen/generate")
-async def codegen_generate(body: CodeGenRequest):
+async def codegen_generate(body: CodeGenRequest, payment: dict = Depends(x402_gate("/agents/codegen/generate"))):
     if not body.description.strip():
         raise HTTPException(400, "description cannot be empty")
     return await codegen_agent.run(
@@ -697,7 +711,7 @@ class DocQuestionRequest(BaseModel):
     k: int = 5
 
 @app.post("/agents/docs/ask")
-async def docs_ask(body: DocQuestionRequest):
+async def docs_ask(body: DocQuestionRequest, payment: dict = Depends(x402_gate("/agents/docs/ask"))):
     if not body.question.strip():
         raise HTTPException(400, "question cannot be empty")
     return await doc_agent.run(
@@ -719,6 +733,7 @@ async def docs_stream(body: DocQuestionRequest):
 async def docs_ingest(
     file: UploadFile = File(...),
     collection: str = Form(default="kai_docs_uploaded"),
+    payment: dict = Depends(x402_gate("/agents/docs/ingest")),
 ):
     """Upload a document (PDF, TXT, MD) and ingest it into the vector store."""
     dest = os.path.join(UPLOADS_DIR, file.filename or "upload.txt")

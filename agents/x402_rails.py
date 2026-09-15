@@ -89,8 +89,11 @@ ROUTE_PRICES: dict[str, int] = {
 
 # Hedera tinybar price table (mirrors EVM table, converted to tinybar)
 # 1 tinybar = 0.00000001 HBAR; we price in units of 1_000_000 tinybar = 0.01 HBAR
+# NOTE: the inner values below are ALREADY in tinybar (e.g. 1_000_000 = 0.01 HBAR) —
+# do NOT multiply by another factor here, that previously caused a 10,000x
+# overcharge (0.01 HBAR silently became 100 HBAR on every priced route).
 HEDERA_ROUTE_PRICES: dict[str, int] = {
-    route: max(1_000_000, price * 10_000)   # at least 0.01 HBAR per call
+    route: max(1_000_000, price)   # at least 0.01 HBAR per call
     for route, price in {
         "/agents/tx/analyse":          1_000_000,
         "/agents/tx/stream":           1_000_000,
