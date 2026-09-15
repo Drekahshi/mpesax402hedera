@@ -17,6 +17,11 @@
  *   - MPESA_B2C_TIMEOUT_URL (public HTTPS URL for timeout callback)
  *
  * In sandbox, use test credentials from the Daraja developer portal.
+ *
+ * Security: this sends real money to an arbitrary phone number — gated by
+ * the same INTERNAL_SERVICE_KEY as /api/hedera. Never expose this directly
+ * to end users; only trusted server-side logic (e.g. a refund flow) should
+ * call it.
  */
 
 import { NextResponse } from "next/server";
@@ -24,7 +29,17 @@ import { b2cSend } from "@/lib/mpesa";
 
 export const dynamic = "force-dynamic";
 
+const INTERNAL_KEY = process.env.INTERNAL_SERVICE_KEY ?? "";
+const B2C_PER_TX_CAP_KES = 5000; // hard ceiling — raise deliberately, never remove
+
 export async function POST(request: Request) {
+  if (!INTERNAL_KEY) {
+    return NextResponse.json({ error: "INTERNAL_SERVICE_KEY is not configured on the server" }, { status: 503 });
+  }
+  if (request.headers.get("x-internal-key") !== INTERNAL_KEY) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const { phone, amountKes, occasion, remarks } = body as {
@@ -50,6 +65,12 @@ export async function POST(request: Request) {
     }
 
     const amount = Math.max(10, Math.round(amountKes));  // B2C minimum is KES 10
+    if (amount > B2C_PER_TX_CAP_KES) {
+      return NextResponse.json(
+        { error: `Per-tx cap: max KES ${B2C_PER_TX_CAP_KES}` },
+        { status: 400 },
+      );
+    }
 
     const result = await b2cSend({
       phone:    clean,
